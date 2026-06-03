@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DJ-пульт — Большая Медведица</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --gold: #C8A84B;
+    --gold2: #E8CC7A;
+    --bg: #070710;
+    --bg2: #0E0E1A;
+    --bg3: #151520;
+    --bg4: #1C1C2A;
+    --border: rgba(200,168,75,0.15);
+    --border2: rgba(200,168,75,0.3);
+    --text: #F0EDE4;
+    --muted: #706A88;
+    --muted2: #A8A0BC;
+    --green: #2A7A4A;
+    --green-bright: #4ACA7A;
+    --purple: #5A3A8A;
+  }
+
+  html, body { height: 100%; background: var(--bg); color: var(--text); }
+
+  body {
+    font-family: 'Montserrat', sans-serif;
+    display: flex; flex-direction: column;
+    min-height: 100vh;
+  }
+
+  /* TOPBAR */
+  .topbar {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-bear { font-size: 24px; }
+  .logo-text {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px; letter-spacing: 2px; color: var(--gold);
+  }
+  .logo-sub { font-size: 10px; color: var(--muted); letter-spacing: 1px; }
+
+  .topbar-right { display: flex; align-items: center; gap: 16px; }
+  .conn-status {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--muted2);
+  }
+  .conn-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--green-bright);
+    animation: blink 2s infinite;
+  }
+  .conn-dot.offline { background: #CA4A4A; animation: none; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .clear-btn {
+    padding: 6px 14px;
+    background: transparent;
+    border: 1px solid rgba(168,58,58,0.4);
+    border-radius: 6px;
+    color: #C08080;
+    font-size: 11px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .clear-btn:hover { border-color: rgba(168,58,58,0.7); color: #E09090; background: rgba(168,58,58,0.08); }
+
+  /* STATS ROW */
+  .stats-row {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 1px; background: var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .stat {
+    background: var(--bg2);
+    padding: 14px 20px; text-align: center;
+  }
+  .stat-n {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 32px; color: var(--gold2); line-height: 1;
+  }
+  .stat-l { font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-top: 3px; }
+
+  /* MAIN LAYOUT */
+  .main {
+    flex: 1; display: grid;
+    grid-template-columns: 340px 1fr;
+    overflow: hidden;
+  }
+
+  /* NOW PLAYING PANEL */
+  .now-panel {
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .panel-title {
+    padding: 16px 20px 12px;
+    font-size: 10px; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--muted);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    font-weight: 600;
+  }
+
+  .now-card {
+    margin: 16px; padding: 20px;
+    background: linear-gradient(135deg, rgba(200,168,75,0.08), rgba(200,168,75,0.03));
+    border: 1px solid var(--border2);
+    border-radius: 14px;
+    flex-shrink: 0;
+  }
+  .now-playing-label {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 10px; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--gold);
+    font-weight: 700; margin-bottom: 12px;
+  }
+  .playing-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--gold);
+    animation: blink 1.2s infinite;
+  }
+  .now-song {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 26px; color: var(--gold2);
+    letter-spacing: 1px; line-height: 1.15;
+    margin-bottom: 8px; word-break: break-word;
+  }
+  .now-table {
+    font-size: 12px; color: var(--muted2);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .table-badge-dj {
+    background: rgba(200,168,75,0.15);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 12px; font-weight: 700; color: var(--gold);
+  }
+  .now-time { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  .done-btn {
+    margin: 0 16px 16px;
+    padding: 13px;
+    background: linear-gradient(135deg, var(--green), #1A5A34);
+    border: none; border-radius: 10px;
+    color: #fff; font-family: 'Montserrat', sans-serif;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: all 0.2s; flex-shrink: 0;
+  }
+  .done-btn:hover { filter: brightness(1.2); }
+  .done-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .empty-now {
+    margin: 16px;
+    padding: 30px 20px;
+    border: 1px dashed rgba(255,255,255,0.08);
+    border-radius: 12px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px; line-height: 1.8;
+  }
+  .empty-now-icon { font-size: 32px; display: block; margin-bottom: 8px; opacity: 0.4; }
+
+  /* QUEUE PANEL */
+  .queue-panel {
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .queue-header {
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .queue-title {
+    font-size: 10px; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--muted); font-weight: 600;
+  }
+  .queue-badge {
+    background: var(--purple);
+    color: #C8B0E8;
+    font-size: 10px; font-weight: 700;
+    padding: 3px 10px; border-radius: 20px;
+  }
+
+  .queue-list {
+    flex: 1; overflow-y: auto;
+    padding: 12px 16px;
+  }
+  .queue-list::-webkit-scrollbar { width: 4px; }
+  .queue-list::-webkit-scrollbar-track { background: transparent; }
+  .queue-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+  .queue-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px;
+    background: var(--bg3);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    animation: slideIn 0.3s ease;
+    transition: border-color 0.2s;
+  }
+  @keyframes slideIn { from { opacity:0; transform: translateX(12px); } to { opacity:1; transform:none; } }
+  .queue-item:hover { border-color: rgba(255,255,255,0.1); }
+  .queue-item.new-item { border-color: rgba(200,168,75,0.3); }
+
+  .q-pos {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 24px; color: var(--muted);
+    min-width: 28px; text-align: center;
+  }
+  .q-info { flex: 1; min-width: 0; }
+  .q-song {
+    font-size: 14px; font-weight: 600;
+    color: var(--text); white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .q-meta {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 3px;
+  }
+  .q-table-tag {
+    background: var(--bg4);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 1px 8px;
+    font-size: 10px; font-weight: 700; color: var(--gold);
+  }
+  .q-time { font-size: 10px; color: var(--muted); }
+
+  .q-skip {
+    padding: 5px 12px;
+    background: transparent;
+    border: 1px solid rgba(168,58,58,0.3);
+    border-radius: 6px;
+    color: #A07070; font-size: 11px;
+    cursor: pointer; transition: all 0.2s; flex-shrink: 0;
+  }
+  .q-skip:hover { border-color: rgba(168,58,58,0.6); color: #E09090; }
+
+  .empty-queue {
+    padding: 60px 30px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px; line-height: 2;
+  }
+  .empty-queue-icon { font-size: 40px; display: block; margin-bottom: 10px; opacity: 0.3; }
+
+  /* CONFIG */
+  .config-overlay {
+    position: fixed; inset: 0; z-index: 50;
+    background: rgba(7,7,16,0.95);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .config-box {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 16px;
+    padding: 28px; max-width: 480px; width: 100%;
+  }
+  .config-box h2 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px; color: var(--gold); letter-spacing: 2px; margin-bottom: 6px;
+  }
+  .config-box p { font-size: 13px; color: var(--muted2); line-height: 1.7; margin-bottom: 16px; }
+  .config-box code {
+    display: block;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: monospace; font-size: 12px;
+    color: var(--gold2); line-height: 1.8;
+    margin-bottom: 16px;
+  }
+  .config-ok {
+    padding: 11px 24px;
+    background: var(--green);
+    border: none; border-radius: 8px;
+    color: #fff; font-weight: 700; cursor: pointer; font-size: 13px;
+  }
+
+  /* NEW ORDER SOUND INDICATOR */
+  .new-order-flash {
+    position: fixed; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--gold), var(--gold2), var(--gold));
+    opacity: 0; transition: opacity 0.1s;
+    pointer-events: none; z-index: 100;
+  }
+  .new-order-flash.flash { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="new-order-flash" id="flash"></div>
+
+<!-- CONFIG OVERLAY (shown until Firebase configured) -->
+<div class="config-overlay" id="cfg-overlay">
+  <div class="config-box">
+    <h2>⚙️ Настройка Firebase</h2>
+    <p>Для работы в реальном времени нужно вставить данные вашего Firebase-проекта в оба файла (<code>guest.html</code> и <code>dj.html</code>).</p>
+    <code>
+      apiKey: "..."<br>
+      authDomain: "....firebaseapp.com"<br>
+      databaseURL: "https://...-rtdb.firebaseio.com"<br>
+      projectId: "..."<br>
+    </code>
+    <p>Как получить: <strong>console.firebase.google.com</strong> → Создать проект → Realtime Database → Настройки → Добавить приложение (Web) → скопировать конфиг.</p>
+    <button class="config-ok" onclick="dismissConfig()">Понял, покажи интерфейс (демо)</button>
+  </div>
+</div>
+
+<div class="topbar">
+  <div class="logo">
+    <span class="logo-bear">🐻</span>
+    <div>
+      <div class="logo-text">DJ-пульт</div>
+      <div class="logo-sub">Большая Медведица · Благовещенск</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="conn-status">
+      <div class="conn-dot" id="conn-dot"></div>
+      <span id="conn-text">Подключение...</span>
+    </div>
+    <button class="clear-btn" onclick="clearAll()">🗑 Очистить всё</button>
+  </div>
+</div>
+
+<div class="stats-row">
+  <div class="stat">
+    <div class="stat-n" id="stat-queue">0</div>
+    <div class="stat-l">В очереди</div>
+  </div>
+  <div class="stat">
+    <div class="stat-n" id="stat-done">0</div>
+    <div class="stat-l">Сыграно за вечер</div>
+  </div>
+  <div class="stat">
+    <div class="stat-n" id="stat-tables">0</div>
+    <div class="stat-l">Активных столов</div>
+  </div>
+</div>
+
+<div class="main">
+  <!-- NOW PLAYING -->
+  <div class="now-panel">
+    <div class="panel-title">▶ Сейчас играет</div>
+    <div id="now-content">
+      <div class="empty-now">
+        <span class="empty-now-icon">🎧</span>
+        Очередь пуста.<br>Ждём первый заказ!
+      </div>
+    </div>
+    <button class="done-btn" id="done-btn" onclick="markDone()" disabled>
+      ✓ &nbsp;Песня сыграна — следующая
+    </button>
+  </div>
+
+  <!-- QUEUE -->
+  <div class="queue-panel">
+    <div class="queue-header">
+      <div class="queue-title">Очередь заявок</div>
+      <div class="queue-badge" id="queue-badge">0 заявок</div>
+    </div>
+    <div class="queue-list" id="queue-list">
+      <div class="empty-queue">
+        <span class="empty-queue-icon">🎵</span>
+        Заявок пока нет.<br>Гости могут заказывать через<br>свои телефоны по QR-коду.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     FIREBASE CONFIG — замените на свои данные!
+════════════════════════════════════════════════ -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, onValue, update, remove, query, orderByChild, equalTo }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  // ▼▼▼ ВСТАВЬТЕ СЮДА ВАШИ ДАННЫЕ FIREBASE ▼▼▼
+  const firebaseConfig = {
+    apiKey: "AIzaSyDC9AK3HtAGvuAdCbtfnWM20LLu12DxzFs",
+    authDomain: "bigbear-karaoke.firebaseapp.com",
+    databaseURL: "https://bigbear-karaoke-default-rtdb.firebaseio.com",
+    projectId: "bigbear-karaoke",
+    storageBucket: "bigbear-karaoke.firebasestorage.app",
+    messagingSenderId: "882418443323",
+    appId: "1:882418443323:web:0dc2e48fc94a02a925e81e"
+  };
+  // ▲▲▲ КОНЕЦ НАСТРОЕК ▲▲▲
+
+  function isConfigured() {
+    return !Object.values(firebaseConfig).some(v => v.startsWith('ВАШ') || v.startsWith('ВАШЕ'));
+  }
+
+  let db = null;
+  let ordersRef = null;
+  let doneCount = 0;
+  let knownKeys = new Set();
+
+  if (isConfigured()) {
+    document.getElementById('cfg-overlay').style.display = 'none';
+    const app = initializeApp(firebaseConfig);
+    db = getDatabase(app);
+    ordersRef = ref(db, 'orders');
+
+    document.getElementById('conn-dot').classList.remove('offline');
+    document.getElementById('conn-text').textContent = 'Онлайн · реальное время';
+
+    onValue(ordersRef, (snapshot) => {
+      const data = snapshot.val() || {};
+      const orders = Object.entries(data)
+        .map(([key, val]) => ({ key, ...val }))
+        .filter(o => o.status === 'pending')
+        .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+      // Flash on new order
+      const newKeys = new Set(orders.map(o => o.key));
+      let hasNew = false;
+      newKeys.forEach(k => { if (!knownKeys.has(k)) hasNew = true; });
+      if (hasNew && knownKeys.size > 0) flashNewOrder();
+      knownKeys = newKeys;
+
+      renderOrders(orders);
+    });
+
+    window._markDone = async function(key) {
+      if (!db || !key) return;
+      const itemRef = ref(db, `orders/${key}`);
+      await remove(itemRef);
+      doneCount++;
+      document.getElementById('stat-done').textContent = doneCount;
+    };
+
+    window._removeOrder = async function(key) {
+      if (!db || !key) return;
+      const itemRef = ref(db, `orders/${key}`);
+      await remove(itemRef);
+    };
+
+    window._clearAll = async function() {
+      if (!db) return;
+      await remove(ref(db, 'orders'));
+      doneCount = 0;
+      document.getElementById('stat-done').textContent = 0;
+    };
+
+  } else {
+    document.getElementById('conn-dot').classList.add('offline');
+    document.getElementById('conn-text').textContent = 'Демо-режим';
+    // Demo data
+    setTimeout(() => {
+      renderOrders([
+        { key: '1', table: 3, song: 'Руки Вверх — Он тебя целует', timestamp: Date.now() - 300000 },
+        { key: '2', table: 7, song: 'Мумий Тролль — Владивосток 2000', timestamp: Date.now() - 200000 },
+        { key: '3', table: 1, song: 'Земфира — Хочешь', timestamp: Date.now() - 100000 },
+        { key: '4', table: 11, song: 'Дима Билан — Я просто люблю тебя', timestamp: Date.now() - 50000 },
+      ]);
+    }, 800);
+    window._markDone = () => { doneCount++; document.getElementById('stat-done').textContent = doneCount; };
+    window._removeOrder = () => {};
+    window._clearAll = () => {};
+  }
+
+  let currentOrders = [];
+
+  function renderOrders(orders) {
+    currentOrders = orders;
+    const queueList = document.getElementById('queue-list');
+    const nowContent = document.getElementById('now-content');
+    const doneBtn = document.getElementById('done-btn');
+    const badge = document.getElementById('queue-badge');
+
+    document.getElementById('stat-queue').textContent = orders.length;
+    const tables = new Set(orders.map(o => o.table));
+    document.getElementById('stat-tables').textContent = tables.size;
+    badge.textContent = orders.length + ' заявок';
+
+    if (orders.length === 0) {
+      nowContent.innerHTML = `<div class="empty-now"><span class="empty-now-icon">🎧</span>Очередь пуста.<br>Ждём первый заказ!</div>`;
+      doneBtn.disabled = true;
+      queueList.innerHTML = `<div class="empty-queue"><span class="empty-queue-icon">🎵</span>Заявок пока нет.<br>Гости могут заказывать через<br>свои телефоны по QR-коду.</div>`;
+      return;
+    }
+
+    const [first, ...rest] = orders;
+    const ts = first.timestamp ? new Date(first.timestamp).toLocaleTimeString('ru', {hour:'2-digit',minute:'2-digit'}) : '';
+
+    nowContent.innerHTML = `
+      <div class="now-card">
+        <div class="now-playing-label"><div class="playing-dot"></div>Сейчас играет</div>
+        <div class="now-song">${esc(first.song)}</div>
+        <div class="now-table">
+          <span class="table-badge-dj">Стол №${first.table}</span>
+        </div>
+        <div class="now-time">${ts ? 'Заказано в ' + ts : ''}</div>
+      </div>
+    `;
+    doneBtn.disabled = false;
+    doneBtn.onclick = () => window._markDone(first.key);
+
+    if (rest.length === 0) {
+      queueList.innerHTML = `<div class="empty-queue" style="padding:30px"><span style="font-size:24px;display:block;margin-bottom:8px;opacity:0.3">✓</span>Больше заявок нет</div>`;
+      return;
+    }
+
+    queueList.innerHTML = '';
+    rest.forEach((item, i) => {
+      const t = item.timestamp ? new Date(item.timestamp).toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'}) : '';
+      const div = document.createElement('div');
+      div.className = 'queue-item';
+      div.innerHTML = `
+        <div class="q-pos">${i + 2}</div>
+        <div class="q-info">
+          <div class="q-song">${esc(item.song)}</div>
+          <div class="q-meta">
+            <span class="q-table-tag">Стол №${item.table}</span>
+            ${t ? `<span class="q-time">${t}</span>` : ''}
+          </div>
+        </div>
+        <button class="q-skip" onclick="window._removeOrder('${item.key}')">✕</button>
+      `;
+      queueList.appendChild(div);
+    });
+  }
+
+  window.renderOrders = renderOrders;
+  window.getCurrentOrders = () => currentOrders;
+
+  function flashNewOrder() {
+    const f = document.getElementById('flash');
+    f.classList.add('flash');
+    // play beep via AudioContext
+    try {
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.4);
+    } catch(e) {}
+    setTimeout(() => f.classList.remove('flash'), 600);
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+</script>
+
+<script>
+  function dismissConfig() {
+    document.getElementById('cfg-overlay').style.display = 'none';
+  }
+  function markDone() {
+    // handled by Firebase module via button onclick
+  }
+  function clearAll() {
+    if (confirm('Очистить всю очередь?')) window._clearAll();
+  }
+</script>
+</body>
+</html>

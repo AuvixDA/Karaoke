@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Большая Медведица — Заказ песни</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --gold: #C8A84B;
+    --gold2: #E8CC7A;
+    --gold-dim: #8A6E2F;
+    --bg: #080810;
+    --bg2: #0F0F1A;
+    --bg3: #161622;
+    --bg4: #1E1E2E;
+    --border: rgba(200,168,75,0.18);
+    --border2: rgba(200,168,75,0.35);
+    --text: #F2EDE4;
+    --muted: #7A7590;
+    --muted2: #B0A8C0;
+    --purple: #5A3A8A;
+    --purple2: #7A5AAA;
+    --red: #A83A3A;
+  }
+
+  html { background: var(--bg); }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Montserrat', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* Starfield bg */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(90,58,138,0.25) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 80%, rgba(200,168,75,0.06) 0%, transparent 50%);
+    pointer-events: none; z-index: 0;
+  }
+
+  .stars {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      radial-gradient(1px 1px at 15% 20%, rgba(255,255,255,0.5) 0%, transparent 100%),
+      radial-gradient(1px 1px at 35% 8%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 60% 15%, rgba(255,255,255,0.4) 0%, transparent 100%),
+      radial-gradient(1.5px 1.5px at 80% 25%, rgba(200,168,75,0.6) 0%, transparent 100%),
+      radial-gradient(1px 1px at 90% 60%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 5% 70%, rgba(255,255,255,0.4) 0%, transparent 100%),
+      radial-gradient(1.5px 1.5px at 25% 85%, rgba(200,168,75,0.5) 0%, transparent 100%),
+      radial-gradient(1px 1px at 70% 90%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 45% 55%, rgba(255,255,255,0.2) 0%, transparent 100%),
+      radial-gradient(1px 1px at 55% 40%, rgba(255,255,255,0.3) 0%, transparent 100%);
+  }
+
+  .page {
+    position: relative; z-index: 1;
+    max-width: 480px; margin: 0 auto;
+    padding: 0 0 40px;
+    min-height: 100vh;
+  }
+
+  /* HEADER */
+  .header {
+    text-align: center;
+    padding: 40px 24px 30px;
+    position: relative;
+  }
+  .header::after {
+    content: '';
+    display: block;
+    width: 60px; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    margin: 20px auto 0;
+  }
+  .bear-icon {
+    font-size: 42px;
+    display: block;
+    margin-bottom: 10px;
+    filter: drop-shadow(0 0 12px rgba(200,168,75,0.4));
+    animation: floatIcon 4s ease-in-out infinite;
+  }
+  @keyframes floatIcon { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+
+  .bar-name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 32px;
+    font-weight: 300;
+    letter-spacing: 4px;
+    color: var(--gold2);
+    line-height: 1.1;
+    text-transform: uppercase;
+  }
+  .bar-sub {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-top: 6px;
+  }
+
+  /* STEPS */
+  .section { padding: 0 20px; margin-bottom: 24px; }
+
+  .step-label {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px;
+  }
+  .step-num {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    border: 1px solid var(--gold-dim);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+    color: var(--gold);
+    flex-shrink: 0;
+  }
+  .step-text {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted2);
+    font-weight: 600;
+  }
+
+  /* TABLE SELECTOR */
+  .table-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+  }
+  .tbl {
+    aspect-ratio: 1;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.07);
+    background: var(--bg3);
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .tbl::before {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(200,168,75,0.12), transparent);
+    opacity: 0; transition: opacity 0.2s;
+  }
+  .tbl:hover { border-color: var(--gold-dim); color: var(--gold2); }
+  .tbl:hover::before { opacity: 1; }
+  .tbl.active {
+    border-color: var(--gold);
+    background: linear-gradient(135deg, rgba(200,168,75,0.2), rgba(200,168,75,0.05));
+    color: var(--gold2);
+    box-shadow: 0 0 16px rgba(200,168,75,0.2), inset 0 0 12px rgba(200,168,75,0.08);
+  }
+  .tbl.active::before { opacity: 1; }
+
+  .table-badge {
+    display: none;
+    margin-top: 12px;
+    padding: 10px 16px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 12px;
+    color: var(--gold);
+    letter-spacing: 1px;
+    text-align: center;
+  }
+  .table-badge.show { display: block; }
+
+  /* SONG INPUT */
+  .input-wrap {
+    position: relative;
+  }
+  .song-input {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 16px 18px;
+    color: var(--text);
+    font-family: 'Montserrat', sans-serif;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    line-height: 1.5;
+  }
+  .song-input::placeholder { color: var(--muted); }
+  .song-input:focus {
+    border-color: var(--border2);
+    box-shadow: 0 0 0 3px rgba(200,168,75,0.08);
+  }
+
+  .ai-row {
+    display: flex; gap: 10px; align-items: flex-start; margin-top: 10px;
+  }
+  .ai-hint {
+    font-size: 11px; color: var(--muted); line-height: 1.5; flex: 1;
+    padding-top: 2px;
+  }
+  .ai-btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 9px 16px;
+    background: linear-gradient(135deg, var(--purple), var(--purple2));
+    border: none; border-radius: 10px;
+    color: #fff; font-family: 'Montserrat', sans-serif;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    white-space: nowrap; transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .ai-btn:hover { filter: brightness(1.15); transform: translateY(-1px); }
+  .ai-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+  .ai-spin { animation: spin 0.8s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* AI RESULT */
+  .ai-result {
+    margin-top: 12px;
+    background: linear-gradient(135deg, rgba(90,58,138,0.15), rgba(90,58,138,0.05));
+    border: 1px solid rgba(122,90,170,0.3);
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: none;
+  }
+  .ai-result.show { display: block; animation: fadeSlide 0.3s ease; }
+  @keyframes fadeSlide { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+
+  .ai-result-label {
+    font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+    color: #9B6FD0; font-weight: 700; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .ai-result-text { font-size: 13px; color: var(--text); line-height: 1.7; }
+
+  .suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .sug-chip {
+    padding: 5px 12px;
+    background: rgba(90,58,138,0.25);
+    border: 1px solid rgba(122,90,170,0.35);
+    border-radius: 20px;
+    font-size: 12px; color: #C0A0E8; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .sug-chip:hover { background: rgba(90,58,138,0.45); color: #fff; }
+
+  /* ORDER BUTTON */
+  .order-section { padding: 0 20px; }
+  .order-btn {
+    width: 100%;
+    padding: 18px;
+    background: linear-gradient(135deg, #A87830, var(--gold), #E8CC7A, var(--gold), #A87830);
+    background-size: 200% 100%;
+    border: none; border-radius: 14px;
+    color: #1A0F00;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 20px; font-weight: 600;
+    letter-spacing: 3px; text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative; overflow: hidden;
+  }
+  .order-btn::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, transparent 30%, rgba(255,255,255,0.15) 50%, transparent 70%);
+    transform: translateX(-100%);
+    transition: transform 0.5s;
+  }
+  .order-btn:hover { background-position: 100% 0; box-shadow: 0 4px 30px rgba(200,168,75,0.35); }
+  .order-btn:hover::after { transform: translateX(100%); }
+  .order-btn:active { transform: scale(0.98); }
+  .order-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  /* SUCCESS SCREEN */
+  .success-screen {
+    position: fixed; inset: 0; z-index: 100;
+    background: var(--bg);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; padding: 40px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.4s;
+  }
+  .success-screen.show { opacity: 1; pointer-events: all; }
+  .success-icon { font-size: 64px; margin-bottom: 20px; animation: popIn 0.5s cubic-bezier(0.34,1.56,0.64,1); }
+  @keyframes popIn { from { transform: scale(0.3); opacity:0; } to { transform: scale(1); opacity:1; } }
+  .success-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 28px; font-weight: 300;
+    color: var(--gold2); letter-spacing: 3px;
+    text-transform: uppercase; margin-bottom: 10px;
+  }
+  .success-sub { font-size: 13px; color: var(--muted2); line-height: 1.7; margin-bottom: 30px; }
+  .success-info {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 24px;
+    margin-bottom: 28px; width: 100%; max-width: 300px;
+  }
+  .success-info-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
+  .success-info-row:not(:last-child) { border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .sil { font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+  .siv { font-size: 14px; font-weight: 600; color: var(--text); }
+  .again-btn {
+    padding: 12px 32px;
+    background: transparent;
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    color: var(--gold);
+    font-family: 'Montserrat', sans-serif;
+    font-size: 13px; font-weight: 600;
+    letter-spacing: 1px; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .again-btn:hover { background: rgba(200,168,75,0.1); }
+
+  /* DIVIDER */
+  .divider {
+    margin: 8px 20px 20px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(200,168,75,0.15), transparent);
+  }
+
+  /* TOAST */
+  .toast {
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+    background: var(--red); color: #fff;
+    padding: 12px 22px; border-radius: 30px;
+    font-size: 13px; font-weight: 600;
+    opacity: 0; transition: opacity 0.3s;
+    pointer-events: none; z-index: 200;
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; }
+
+  /* STATUS BAR */
+  .status-bar {
+    margin: 0 20px 20px;
+    padding: 10px 14px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 11px;
+    color: var(--muted);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #3A8A4A;
+    box-shadow: 0 0 8px rgba(58,138,74,0.7);
+    animation: blink 2s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* CONFIG NOTICE */
+  .config-notice {
+    margin: 0 20px 20px;
+    padding: 14px 16px;
+    background: rgba(168,58,58,0.1);
+    border: 1px solid rgba(168,58,58,0.3);
+    border-radius: 10px;
+    font-size: 12px;
+    color: #E08080;
+    line-height: 1.6;
+    display: none;
+  }
+  .config-notice.show { display: block; }
+  .config-notice strong { color: #F0A0A0; }
+</style>
+</head>
+<body>
+<div class="stars"></div>
+
+<div class="page">
+
+  <div class="config-notice" id="cfg-notice">
+    <strong>⚙️ Требуется настройка Firebase</strong><br>
+    Откройте файл <code>guest.html</code> и замените значения в блоке <code>FIREBASE CONFIG</code> на данные из вашего проекта Firebase. Инструкция в файле <code>README.txt</code>.
+  </div>
+
+  <div class="header">
+    <span class="bear-icon">🐻</span>
+    <div class="bar-name">Большая<br>Медведица</div>
+    <div class="bar-sub">Karaoke Bar · Благовещенск</div>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-dot"></div>
+    <span id="status-text">Подключение к системе заказов...</span>
+  </div>
+
+  <!-- STEP 1: TABLE -->
+  <div class="section">
+    <div class="step-label">
+      <div class="step-num">1</div>
+      <div class="step-text">Ваш стол</div>
+    </div>
+    <div class="table-grid" id="table-grid"></div>
+    <div class="table-badge" id="table-badge">📍 Вы за столом №<span id="badge-num"></span></div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- STEP 2: SONG -->
+  <div class="section">
+    <div class="step-label">
+      <div class="step-num">2</div>
+      <div class="step-text">Выберите песню</div>
+    </div>
+
+    <div class="input-wrap">
+      <input
+        class="song-input"
+        id="song-input"
+        placeholder="Название песни или исполнитель..."
+        autocomplete="off"
+      />
+    </div>
+
+    <div class="ai-row">
+      <div class="ai-hint">Не знаете как называется? Опишите — ИИ найдёт</div>
+      <button class="ai-btn" id="ai-btn" onclick="askAI()">✨ Найти</button>
+    </div>
+
+    <div class="ai-result" id="ai-result">
+      <div class="ai-result-label">✦ ИИ-ассистент</div>
+      <div class="ai-result-text" id="ai-text"></div>
+      <div class="suggestions" id="suggestions"></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- STEP 3: ORDER -->
+  <div class="order-section">
+    <div class="step-label" style="padding: 0 0 14px;">
+      <div class="step-num">3</div>
+      <div class="step-text">Отправить заявку</div>
+    </div>
+    <button class="order-btn" id="order-btn" onclick="orderSong()">
+      🎤 &nbsp;Заказать песню
+    </button>
+  </div>
+
+</div>
+
+<!-- SUCCESS -->
+<div class="success-screen" id="success">
+  <div class="success-icon">🎶</div>
+  <div class="success-title">Заявка принята!</div>
+  <div class="success-sub">Ваша песня отправлена диджею.<br>Ожидайте своей очереди!</div>
+  <div class="success-info">
+    <div class="success-info-row">
+      <span class="sil">Стол</span>
+      <span class="siv" id="s-table">—</span>
+    </div>
+    <div class="success-info-row">
+      <span class="sil">Песня</span>
+      <span class="siv" id="s-song">—</span>
+    </div>
+    <div class="success-info-row">
+      <span class="sil">Время</span>
+      <span class="siv" id="s-time">—</span>
+    </div>
+  </div>
+  <button class="again-btn" onclick="resetForm()">Заказать ещё</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ═══════════════════════════════════════════════
+     FIREBASE CONFIG — замените на свои данные!
+     Получить: console.firebase.google.com →
+     Ваш проект → Настройки → Ваши приложения → SDK
+════════════════════════════════════════════════ -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, push, serverTimestamp }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  // ▼▼▼ ВСТАВЬТЕ СЮДА ВАШИ ДАННЫЕ FIREBASE ▼▼▼
+  const firebaseConfig = {
+    apiKey: "AIzaSyDC9AK3HtAGvuAdCbtfnWM20LLu12DxzFs",
+    authDomain: "bigbear-karaoke.firebaseapp.com",
+    databaseURL: "https://bigbear-karaoke-default-rtdb.firebaseio.com",
+    projectId: "bigbear-karaoke",
+    storageBucket: "bigbear-karaoke.firebasestorage.app",
+    messagingSenderId: "882418443323",
+    appId: "1:882418443323:web:0dc2e48fc94a02a925e81e"
+  };
+  // ▲▲▲ КОНЕЦ НАСТРОЕК ▲▲▲
+
+  let db = null;
+
+  function isConfigured() {
+    return !Object.values(firebaseConfig).some(v => v.startsWith('ВАШ') || v.startsWith('ВАШЕ'));
+  }
+
+  if (isConfigured()) {
+    try {
+      const app = initializeApp(firebaseConfig);
+      db = getDatabase(app);
+      document.getElementById('status-text').textContent = 'Система готова к заказам';
+    } catch(e) {
+      document.getElementById('status-text').textContent = 'Ошибка подключения';
+    }
+  } else {
+    document.getElementById('cfg-notice').classList.add('show');
+    document.getElementById('status-text').textContent = 'Требуется настройка (см. выше)';
+  }
+
+  // Expose to global scope
+  window._firebaseReady = !!db;
+  window._sendOrder = async function(table, song) {
+    if (!db) {
+      // DEMO MODE без Firebase
+      return { demo: true };
+    }
+    const ordersRef = ref(db, 'orders');
+    await push(ordersRef, {
+      table: table,
+      song: song,
+      status: 'pending',
+      timestamp: serverTimestamp()
+    });
+    return { ok: true };
+  };
+</script>
+
+<script>
+  const TABLES = 13;
+  let selectedTable = null;
+
+  // Build table grid
+  const grid = document.getElementById('table-grid');
+  for (let i = 1; i <= TABLES; i++) {
+    const b = document.createElement('button');
+    b.className = 'tbl';
+    b.textContent = i;
+    b.dataset.n = i;
+    b.addEventListener('click', () => selectTable(i, b));
+    grid.appendChild(b);
+  }
+
+  // Pre-select from URL param ?table=N (for QR codes)
+  const urlTable = new URLSearchParams(location.search).get('table');
+  if (urlTable && +urlTable >= 1 && +urlTable <= TABLES) {
+    setTimeout(() => {
+      const btn = grid.querySelector(`[data-n="${urlTable}"]`);
+      if (btn) selectTable(+urlTable, btn);
+    }, 100);
+  }
+
+  function selectTable(n, btn) {
+    selectedTable = n;
+    document.querySelectorAll('.tbl').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const badge = document.getElementById('table-badge');
+    document.getElementById('badge-num').textContent = n;
+    badge.classList.add('show');
+  }
+
+  async function askAI() {
+    const input = document.getElementById('song-input').value.trim();
+    if (!input) { showToast('Введите название или описание песни'); return; }
+    const btn = document.getElementById('ai-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="ai-spin">⟳</span> Ищу...';
+
+    const resultBox = document.getElementById('ai-result');
+    const aiText = document.getElementById('ai-text');
+    const sugsEl = document.getElementById('suggestions');
+    resultBox.classList.remove('show');
+
+    try {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          system: `Ты помощник в русском кара-оке баре "Большая Медведица" в Благовещенске.
+Гость описывает песню которую хочет заказать — помоги найти точное название и исполнителя.
+Отвечай на русском. Формат ответа строго JSON:
+{
+  "comment": "короткий дружелюбный комментарий 1 предложение",
+  "songs": ["Исполнитель — Название", "Исполнитель — Название", "Исполнитель — Название"]
+}
+Предложи 2-3 самых подходящих варианта для кара-оке. Только JSON, без markdown.`,
+          messages: [{ role: 'user', content: `Гость ищет: "${input}"` }]
+        })
+      });
+      const data = await resp.json();
+      const raw = data.content?.[0]?.text || '{}';
+      let parsed;
+      try { parsed = JSON.parse(raw.replace(/```json|```/g, '').trim()); }
+      catch { parsed = { comment: raw, songs: [] }; }
+
+      aiText.textContent = parsed.comment || '';
+      sugsEl.innerHTML = '';
+      (parsed.songs || []).forEach(s => {
+        const chip = document.createElement('button');
+        chip.className = 'sug-chip';
+        chip.textContent = s;
+        chip.onclick = () => {
+          document.getElementById('song-input').value = s;
+          resultBox.classList.remove('show');
+        };
+        sugsEl.appendChild(chip);
+      });
+      resultBox.classList.add('show');
+    } catch (e) {
+      aiText.textContent = 'ИИ временно недоступен. Введите название вручную.';
+      sugsEl.innerHTML = '';
+      resultBox.classList.add('show');
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '✨ Найти';
+  }
+
+  async function orderSong() {
+    if (!selectedTable) { showToast('Выберите стол — нажмите на номер выше'); return; }
+    const song = document.getElementById('song-input').value.trim();
+    if (!song) { showToast('Введите название песни'); return; }
+
+    const btn = document.getElementById('order-btn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Отправляем...';
+
+    try {
+      await window._sendOrder(selectedTable, song);
+      document.getElementById('s-table').textContent = '№' + selectedTable;
+      document.getElementById('s-song').textContent = song;
+      document.getElementById('s-time').textContent = new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
+      document.getElementById('success').classList.add('show');
+    } catch (e) {
+      showToast('Ошибка. Попробуйте снова.');
+    }
+
+    btn.disabled = false;
+    btn.textContent = '🎤  Заказать песню';
+  }
+
+  function resetForm() {
+    document.getElementById('success').classList.remove('show');
+    document.getElementById('song-input').value = '';
+    document.getElementById('ai-result').classList.remove('show');
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2800);
+  }
+</script>
+</body>
+</html>
