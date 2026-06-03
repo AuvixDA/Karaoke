@@ -589,22 +589,26 @@
     resultBox.classList.remove('show');
 
     try {
-      const resp = await fetch(''https://karaoke.ivankatsan24954.workers.dev', {
+      const resp = await fetch('https://karaoke.ivankatsan24954.workers.dev', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          system: `Ты помощник в русском кара-оке баре "Большая Медведица" в Благовещенске.
+body: JSON.stringify({
+  messages: [
+    {
+      role: 'user',
+      content: `Ты помощник в русском кара-оке баре "Большая Медведица" в Благовещенске.
 Гость описывает песню которую хочет заказать — помоги найти точное название и исполнителя.
 Отвечай на русском. Формат ответа строго JSON:
 {
   "comment": "короткий дружелюбный комментарий 1 предложение",
   "songs": ["Исполнитель — Название", "Исполнитель — Название", "Исполнитель — Название"]
 }
-Предложи 2-3 самых подходящих варианта для кара-оке. Только JSON, без markdown.`,
-          messages: [{ role: 'user', content: `Гость ищет: "${input}"` }]
-        })
+Предложи 2-3 самых подходящих варианта для кара-оке. Только JSON, без markdown.
+
+Гость ищет: "${input}"`
+    }
+  ]
+})
       });
       const data = await resp.json();
       const raw = data.content?.[0]?.text || '{}';
