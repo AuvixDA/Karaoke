@@ -3,344 +3,273 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0A0F">
 <title>DJ-пульт — Большая Медведица</title>
+<link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --gold: #C8A84B;
-    --gold2: #E8CC7A;
-    --bg: #070710;
-    --bg2: #0E0E1A;
-    --bg3: #151520;
-    --bg4: #1C1C2A;
-    --border: rgba(200,168,75,0.15);
-    --border2: rgba(200,168,75,0.3);
-    --text: #F0EDE4;
-    --muted: #706A88;
-    --muted2: #A8A0BC;
-    --green: #2A7A4A;
-    --green-bright: #4ACA7A;
-    --purple: #5A3A8A;
+    --accent: #E8B84B;
+    --accent-dim: rgba(232,184,75,0.12);
+    --bg: #0A0A0F;
+    --bg2: #111118;
+    --bg3: #18181F;
+    --bg4: #1F1F28;
+    --border: rgba(255,255,255,0.07);
+    --border-accent: rgba(232,184,75,0.2);
+    --text: #F0EDE8;
+    --text2: #A09AB0;
+    --text3: #5A5570;
+    --green: #4ACA7A;
+    --red: #CA5A5A;
+    --red-dim: rgba(202,90,90,0.12);
+    --radius: 14px;
+    --radius-sm: 9px;
   }
 
   html, body { height: 100%; background: var(--bg); color: var(--text); }
+  body { font-family: 'DM Sans', sans-serif; display: flex; flex-direction: column; min-height: 100vh; overflow: hidden; }
 
-  body {
-    font-family: 'Montserrat', sans-serif;
-    display: flex; flex-direction: column;
-    min-height: 100vh;
-  }
-
-  /* TOPBAR */
+  /* ── TOPBAR ── */
   .topbar {
-    background: var(--bg2);
-    border-bottom: 1px solid var(--border);
-    padding: 12px 24px;
+    background: var(--bg2); border-bottom: 1px solid var(--border);
+    padding: 0 20px; height: 52px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: space-between;
-    flex-shrink: 0;
   }
   .logo { display: flex; align-items: center; gap: 10px; }
-  .logo-bear { font-size: 24px; }
-  .logo-text {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 20px; letter-spacing: 2px; color: var(--gold);
+  .logo-icon {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--bg3); border: 1px solid var(--border-accent);
+    display: flex; align-items: center; justify-content: center; font-size: 14px;
   }
-  .logo-sub { font-size: 10px; color: var(--muted); letter-spacing: 1px; }
-
-  .topbar-right { display: flex; align-items: center; gap: 16px; }
-  .conn-status {
-    display: flex; align-items: center; gap: 6px;
-    font-size: 11px; color: var(--muted2);
+  .logo-text { font-family: 'DM Serif Display', serif; font-size: 16px; color: var(--accent); }
+  .logo-role { font-size: 10px; font-weight: 500; color: var(--text3); letter-spacing: 2px; text-transform: uppercase; }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .conn-pill {
+    display: flex; align-items: center; gap: 6px; padding: 4px 10px;
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 20px;
+    font-size: 10px; font-weight: 500; color: var(--text3);
   }
-  .conn-dot {
-    width: 7px; height: 7px; border-radius: 50%;
-    background: var(--green-bright);
-    animation: blink 2s infinite;
-  }
-  .conn-dot.offline { background: #CA4A4A; animation: none; }
+  .conn-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: blink 2s infinite; }
+  .conn-dot.offline { background: var(--red); animation: none; }
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
-  .clear-btn {
-    padding: 6px 14px;
-    background: transparent;
-    border: 1px solid rgba(168,58,58,0.4);
-    border-radius: 6px;
-    color: #C08080;
-    font-size: 11px; font-weight: 600;
-    cursor: pointer; transition: all 0.2s;
-  }
-  .clear-btn:hover { border-color: rgba(168,58,58,0.7); color: #E09090; background: rgba(168,58,58,0.08); }
-
-  /* STATS ROW */
+  /* ── STATS ROW ── */
   .stats-row {
     display: grid; grid-template-columns: repeat(3, 1fr);
-    gap: 1px; background: var(--border);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--bg2);
   }
-  .stat {
-    background: var(--bg2);
-    padding: 14px 20px; text-align: center;
-  }
-  .stat-n {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 32px; color: var(--gold2); line-height: 1;
-  }
-  .stat-l { font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-top: 3px; }
+  .stat { padding: 10px 16px; text-align: center; border-right: 1px solid var(--border); }
+  .stat:last-child { border-right: none; }
+  .stat-n { font-family: 'DM Serif Display', serif; font-size: 26px; color: var(--accent); line-height: 1; }
+  .stat-l { font-size: 9px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text3); margin-top: 2px; }
 
-  /* MAIN LAYOUT */
+  /* ── TABS ── */
+  .tabs {
+    display: flex; background: var(--bg2);
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .tab {
+    flex: 1; padding: 11px 16px; text-align: center;
+    font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--text3); cursor: pointer; border-bottom: 2px solid transparent;
+    transition: all 0.18s; user-select: none;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-panel { display: none; flex: 1; overflow: hidden; }
+  .tab-panel.active { display: flex; }
+
+  /* ── MAIN LAYOUT (Queue tab) ── */
   .main {
     flex: 1; display: grid;
-    grid-template-columns: 340px 1fr;
+    grid-template-columns: 300px 1fr;
     overflow: hidden;
   }
 
-  /* NOW PLAYING PANEL */
+  /* ── NOW PLAYING ── */
   .now-panel {
-    background: var(--bg2);
-    border-right: 1px solid var(--border);
-    display: flex; flex-direction: column;
-    overflow: hidden;
+    background: var(--bg2); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden;
   }
-  .panel-title {
-    padding: 16px 20px 12px;
-    font-size: 10px; letter-spacing: 2px;
-    text-transform: uppercase; color: var(--muted);
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-    font-weight: 600;
+  .panel-head {
+    padding: 12px 16px 10px; font-size: 9px; font-weight: 700;
+    letter-spacing: 2px; text-transform: uppercase; color: var(--text3);
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
   }
-
   .now-card {
-    margin: 16px; padding: 20px;
-    background: linear-gradient(135deg, rgba(200,168,75,0.08), rgba(200,168,75,0.03));
-    border: 1px solid var(--border2);
-    border-radius: 14px;
-    flex-shrink: 0;
+    margin: 14px; padding: 18px;
+    background: linear-gradient(145deg, rgba(232,184,75,0.07), rgba(232,184,75,0.02));
+    border: 1px solid var(--border-accent); border-radius: var(--radius); flex-shrink: 0;
   }
-  .now-playing-label {
-    display: flex; align-items: center; gap: 8px;
-    font-size: 10px; letter-spacing: 2px;
-    text-transform: uppercase; color: var(--gold);
-    font-weight: 700; margin-bottom: 12px;
+  .now-tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 9px; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 12px;
   }
-  .playing-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--gold);
-    animation: blink 1.2s infinite;
+  .playing-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: blink 1.2s infinite; }
+  .now-song { font-size: 20px; font-weight: 700; color: var(--text); line-height: 1.3; margin-bottom: 10px; word-break: break-word; }
+  .now-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .table-chip {
+    padding: 3px 10px; background: var(--accent-dim); border: 1px solid var(--border-accent);
+    border-radius: 6px; font-size: 11px; font-weight: 700; color: var(--accent);
   }
-  .now-song {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 26px; color: var(--gold2);
-    letter-spacing: 1px; line-height: 1.15;
-    margin-bottom: 8px; word-break: break-word;
-  }
-  .now-table {
-    font-size: 12px; color: var(--muted2);
-    display: flex; align-items: center; gap: 6px;
-  }
-  .table-badge-dj {
-    background: rgba(200,168,75,0.15);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 3px 10px;
-    font-size: 12px; font-weight: 700; color: var(--gold);
-  }
-  .now-time { font-size: 11px; color: var(--muted); margin-top: 4px; }
-
+  .time-chip { font-size: 11px; color: var(--text3); }
   .done-btn {
-    margin: 0 16px 16px;
-    padding: 13px;
-    background: linear-gradient(135deg, var(--green), #1A5A34);
-    border: none; border-radius: 10px;
-    color: #fff; font-family: 'Montserrat', sans-serif;
-    font-size: 13px; font-weight: 700; cursor: pointer;
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-    transition: all 0.2s; flex-shrink: 0;
+    margin: 0 14px 14px; padding: 13px;
+    background: linear-gradient(145deg, #2A6A44, #1E5034);
+    border: none; border-radius: var(--radius-sm); color: #fff;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 700;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: all 0.18s; flex-shrink: 0;
   }
-  .done-btn:hover { filter: brightness(1.2); }
-  .done-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-
+  .done-btn:hover { filter: brightness(1.18); }
+  .done-btn:disabled { opacity: 0.3; cursor: not-allowed; filter: none; }
   .empty-now {
-    margin: 16px;
-    padding: 30px 20px;
-    border: 1px dashed rgba(255,255,255,0.08);
-    border-radius: 12px;
-    text-align: center;
-    color: var(--muted);
-    font-size: 13px; line-height: 1.8;
+    margin: 14px; padding: 28px 16px;
+    border: 1px dashed rgba(255,255,255,0.07); border-radius: var(--radius);
+    text-align: center; color: var(--text3); font-size: 13px; line-height: 1.8;
   }
-  .empty-now-icon { font-size: 32px; display: block; margin-bottom: 8px; opacity: 0.4; }
+  .empty-icon { font-size: 28px; display: block; margin-bottom: 8px; opacity: 0.3; }
 
-  /* QUEUE PANEL */
-  .queue-panel {
-    display: flex; flex-direction: column;
-    overflow: hidden;
+  /* ── QUEUE LIST ── */
+  .queue-panel { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+  .queue-head {
+    padding: 12px 16px 10px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
   }
-  .queue-header {
-    padding: 16px 20px 12px;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-    display: flex; align-items: center; justify-content: space-between;
-    flex-shrink: 0;
+  .queue-head-label { font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--text3); }
+  .queue-count-badge {
+    padding: 3px 10px; background: rgba(130,80,200,0.15); border: 1px solid rgba(180,120,220,0.2);
+    border-radius: 20px; font-size: 10px; font-weight: 700; color: #C0A0E0;
   }
-  .queue-title {
-    font-size: 10px; letter-spacing: 2px;
-    text-transform: uppercase; color: var(--muted); font-weight: 600;
-  }
-  .queue-badge {
-    background: var(--purple);
-    color: #C8B0E8;
-    font-size: 10px; font-weight: 700;
-    padding: 3px 10px; border-radius: 20px;
-  }
-
-  .queue-list {
-    flex: 1; overflow-y: auto;
-    padding: 12px 16px;
-  }
-  .queue-list::-webkit-scrollbar { width: 4px; }
-  .queue-list::-webkit-scrollbar-track { background: transparent; }
-  .queue-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
-
+  .queue-list { flex: 1; overflow-y: auto; padding: 10px 12px; }
+  .queue-list::-webkit-scrollbar { width: 3px; }
+  .queue-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
   .queue-item {
-    display: flex; align-items: center; gap: 12px;
-    padding: 12px 14px;
-    background: var(--bg3);
-    border: 1px solid rgba(255,255,255,0.05);
-    border-radius: 10px;
-    margin-bottom: 8px;
-    animation: slideIn 0.3s ease;
-    transition: border-color 0.2s;
+    display: flex; align-items: center; gap: 10px; padding: 11px 13px;
+    background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    margin-bottom: 7px; animation: slideIn 0.25s ease; transition: border-color 0.18s;
   }
-  @keyframes slideIn { from { opacity:0; transform: translateX(12px); } to { opacity:1; transform:none; } }
-  .queue-item:hover { border-color: rgba(255,255,255,0.1); }
-  .queue-item.new-item { border-color: rgba(200,168,75,0.3); }
-
-  .q-pos {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 24px; color: var(--muted);
-    min-width: 28px; text-align: center;
-  }
+  @keyframes slideIn { from { opacity:0; transform:translateX(8px); } to { opacity:1; transform:none; } }
+  .queue-item:hover { border-color: rgba(255,255,255,0.12); }
+  .q-pos { font-family: 'DM Serif Display', serif; font-size: 20px; color: var(--text3); min-width: 26px; text-align: center; flex-shrink: 0; }
   .q-info { flex: 1; min-width: 0; }
-  .q-song {
-    font-size: 14px; font-weight: 600;
-    color: var(--text); white-space: nowrap;
-    overflow: hidden; text-overflow: ellipsis;
-  }
-  .q-meta {
-    display: flex; align-items: center; gap: 8px;
-    margin-top: 3px;
-  }
-  .q-table-tag {
-    background: var(--bg4);
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    padding: 1px 8px;
-    font-size: 10px; font-weight: 700; color: var(--gold);
-  }
-  .q-time { font-size: 10px; color: var(--muted); }
-
+  .q-song { font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .q-meta { display: flex; align-items: center; gap: 7px; margin-top: 3px; }
+  .q-table { padding: 2px 8px; background: var(--bg3); border: 1px solid var(--border-accent); border-radius: 5px; font-size: 10px; font-weight: 700; color: var(--accent); }
+  .q-time { font-size: 10px; color: var(--text3); }
   .q-skip {
-    padding: 5px 12px;
-    background: transparent;
-    border: 1px solid rgba(168,58,58,0.3);
-    border-radius: 6px;
-    color: #A07070; font-size: 11px;
-    cursor: pointer; transition: all 0.2s; flex-shrink: 0;
+    width: 28px; height: 28px; background: transparent; border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text3); font-size: 12px; cursor: pointer;
+    transition: all 0.15s; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   }
-  .q-skip:hover { border-color: rgba(168,58,58,0.6); color: #E09090; }
+  .q-skip:hover { border-color: rgba(202,90,90,0.4); color: var(--red); background: var(--red-dim); }
+  .empty-queue { padding: 40px 20px; text-align: center; color: var(--text3); font-size: 13px; line-height: 1.8; }
+  .empty-queue-icon { font-size: 24px; display: block; margin-bottom: 8px; opacity: 0.3; }
 
-  .empty-queue {
-    padding: 60px 30px;
-    text-align: center;
-    color: var(--muted);
-    font-size: 13px; line-height: 2;
-  }
-  .empty-queue-icon { font-size: 40px; display: block; margin-bottom: 10px; opacity: 0.3; }
-
-  /* CONFIG */
-  .config-overlay {
-    position: fixed; inset: 0; z-index: 50;
-    background: rgba(7,7,16,0.95);
-    display: flex; align-items: center; justify-content: center;
-    padding: 24px;
-  }
-  .config-box {
-    background: var(--bg3);
-    border: 1px solid var(--border2);
-    border-radius: 16px;
-    padding: 28px; max-width: 480px; width: 100%;
-  }
-  .config-box h2 {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 22px; color: var(--gold); letter-spacing: 2px; margin-bottom: 6px;
-  }
-  .config-box p { font-size: 13px; color: var(--muted2); line-height: 1.7; margin-bottom: 16px; }
-  .config-box code {
-    display: block;
+  /* ── TABLES TAB ── */
+  .tables-panel {
+    flex: 1; display: flex; flex-direction: column; overflow: hidden;
     background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px 14px;
-    font-family: monospace; font-size: 12px;
-    color: var(--gold2); line-height: 1.8;
-    margin-bottom: 16px;
   }
-  .config-ok {
-    padding: 11px 24px;
-    background: var(--green);
-    border: none; border-radius: 8px;
-    color: #fff; font-weight: 700; cursor: pointer; font-size: 13px;
+  .tables-head {
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+    background: var(--bg2);
+  }
+  .tables-head-label { font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--text3); }
+  .close-evening-btn {
+    padding: 7px 16px;
+    background: transparent;
+    border: 1px solid rgba(202,90,90,0.35);
+    border-radius: var(--radius-sm);
+    color: var(--red); font-family: 'DM Sans', sans-serif;
+    font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.18s;
+  }
+  .close-evening-btn:hover { background: var(--red-dim); border-color: rgba(202,90,90,0.65); }
+
+  .tables-grid {
+    flex: 1; overflow-y: auto;
+    padding: 16px 20px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;
+    align-content: start;
+  }
+  .tables-grid::-webkit-scrollbar { width: 3px; }
+  .tables-grid::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+  .tbl-stat-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px 14px;
+    text-align: center; transition: border-color 0.18s;
+  }
+  .tbl-stat-card.has-orders { border-color: var(--border-accent); }
+  .tbl-stat-num {
+    font-size: 11px; font-weight: 600; letter-spacing: 1px;
+    color: var(--text3); text-transform: uppercase; margin-bottom: 10px;
+  }
+  .tbl-stat-count {
+    font-family: 'DM Serif Display', serif;
+    font-size: 36px; line-height: 1; color: var(--text3);
+  }
+  .tbl-stat-card.has-orders .tbl-stat-count { color: var(--accent); }
+  .tbl-stat-label {
+    font-size: 10px; color: var(--text3); margin-top: 4px;
+  }
+  .tbl-stat-card.has-orders .tbl-stat-label { color: var(--text2); }
+
+  .tables-empty {
+    padding: 60px 20px; text-align: center; color: var(--text3); font-size: 13px; line-height: 1.8;
   }
 
-  /* NEW ORDER SOUND INDICATOR */
-  .new-order-flash {
-    position: fixed; top: 0; left: 0; right: 0; height: 3px;
-    background: linear-gradient(90deg, var(--gold), var(--gold2), var(--gold));
-    opacity: 0; transition: opacity 0.1s;
-    pointer-events: none; z-index: 100;
+  /* ── FLASH / NOTIF ── */
+  #flash {
+    position: fixed; inset: 0; pointer-events: none; z-index: 999;
+    background: rgba(232,184,75,0.08); opacity: 0; transition: opacity 0.1s;
   }
-  .new-order-flash.flash { opacity: 1; }
+  #flash.flash { opacity: 1; }
+  .notif {
+    position: fixed; top: 60px; right: 16px;
+    background: var(--bg2); border: 1px solid var(--border-accent);
+    border-radius: var(--radius); padding: 14px 18px; z-index: 400;
+    transform: translateX(120%); transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    max-width: 240px;
+  }
+  .notif.show { transform: translateX(0); }
+  .notif-label { font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
+  .notif-song { font-size: 13px; font-weight: 600; color: var(--text); }
+  .notif-table { font-size: 11px; color: var(--text3); margin-top: 2px; }
 </style>
 </head>
 <body>
 
-<div class="new-order-flash" id="flash"></div>
-
-<!-- CONFIG OVERLAY (shown until Firebase configured) -->
-<div class="config-overlay" id="cfg-overlay">
-  <div class="config-box">
-    <h2>⚙️ Настройка Firebase</h2>
-    <p>Для работы в реальном времени нужно вставить данные вашего Firebase-проекта в оба файла (<code>guest.html</code> и <code>dj.html</code>).</p>
-    <code>
-      apiKey: "..."<br>
-      authDomain: "....firebaseapp.com"<br>
-      databaseURL: "https://...-rtdb.firebaseio.com"<br>
-      projectId: "..."<br>
-    </code>
-    <p>Как получить: <strong>console.firebase.google.com</strong> → Создать проект → Realtime Database → Настройки → Добавить приложение (Web) → скопировать конфиг.</p>
-    <button class="config-ok" onclick="dismissConfig()">Понял, покажи интерфейс (демо)</button>
-  </div>
+<div id="flash"></div>
+<div class="notif" id="notif">
+  <div class="notif-label">Новый заказ!</div>
+  <div class="notif-song" id="notif-song">—</div>
+  <div class="notif-table" id="notif-table">—</div>
 </div>
 
+<!-- TOPBAR -->
 <div class="topbar">
   <div class="logo">
-    <span class="logo-bear">🐻</span>
+    <div class="logo-icon">🐻</div>
     <div>
-      <div class="logo-text">DJ-пульт</div>
-      <div class="logo-sub">Большая Медведица · Благовещенск</div>
+      <div class="logo-text">Большая Медведица</div>
+      <div class="logo-role">DJ-пульт</div>
     </div>
   </div>
   <div class="topbar-right">
-    <div class="conn-status">
-      <div class="conn-dot" id="conn-dot"></div>
+    <div class="conn-pill">
+      <div class="conn-dot offline" id="conn-dot"></div>
       <span id="conn-text">Подключение...</span>
     </div>
-    <button class="clear-btn" onclick="clearAll()">🗑 Очистить всё</button>
   </div>
 </div>
 
+<!-- STATS -->
 <div class="stats-row">
   <div class="stat">
     <div class="stat-n" id="stat-queue">0</div>
@@ -348,53 +277,77 @@
   </div>
   <div class="stat">
     <div class="stat-n" id="stat-done">0</div>
-    <div class="stat-l">Сыграно за вечер</div>
+    <div class="stat-l">Сыграно</div>
   </div>
   <div class="stat">
     <div class="stat-n" id="stat-tables">0</div>
-    <div class="stat-l">Активных столов</div>
+    <div class="stat-l">Столиков</div>
   </div>
 </div>
 
-<div class="main">
-  <!-- NOW PLAYING -->
-  <div class="now-panel">
-    <div class="panel-title">▶ Сейчас играет</div>
-    <div id="now-content">
-      <div class="empty-now">
-        <span class="empty-now-icon">🎧</span>
-        Очередь пуста.<br>Ждём первый заказ!
-      </div>
-    </div>
-    <button class="done-btn" id="done-btn" onclick="markDone()" disabled>
-      ✓ &nbsp;Песня сыграна — следующая
-    </button>
-  </div>
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('queue')">▶ Очередь</div>
+  <div class="tab" onclick="switchTab('tables')">📊 По столикам</div>
+</div>
 
-  <!-- QUEUE -->
-  <div class="queue-panel">
-    <div class="queue-header">
-      <div class="queue-title">Очередь заявок</div>
-      <div class="queue-badge" id="queue-badge">0 заявок</div>
+<!-- TAB: QUEUE -->
+<div class="tab-panel active" id="tab-queue">
+  <div class="main">
+    <!-- NOW PLAYING -->
+    <div class="now-panel">
+      <div class="panel-head">▶ Сейчас играет</div>
+      <div id="now-content">
+        <div class="empty-now">
+          <span class="empty-icon">🎧</span>
+          Очередь пуста.<br>Ждём первый заказ.
+        </div>
+      </div>
+      <button class="done-btn" id="done-btn" disabled>
+        ✓ &nbsp;Сыграна — следующая
+      </button>
     </div>
-    <div class="queue-list" id="queue-list">
-      <div class="empty-queue">
-        <span class="empty-queue-icon">🎵</span>
-        Заявок пока нет.<br>Гости могут заказывать через<br>свои телефоны по QR-коду.
+
+    <!-- QUEUE LIST -->
+    <div class="queue-panel">
+      <div class="queue-head">
+        <div class="queue-head-label">Очередь заявок</div>
+        <div class="queue-count-badge" id="queue-badge">0 заявок</div>
+      </div>
+      <div class="queue-list" id="queue-list">
+        <div class="empty-queue">
+          <span class="empty-queue-icon">🎵</span>
+          Заявок пока нет.<br>Гости заказывают через телефон по QR-коду.
+        </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════
-     FIREBASE CONFIG — замените на свои данные!
-════════════════════════════════════════════════ -->
+<!-- TAB: TABLES -->
+<div class="tab-panel" id="tab-tables">
+  <div class="tables-panel">
+    <div class="tables-head">
+      <div class="tables-head-label">Заказы по столикам — текущий вечер</div>
+      <button class="close-evening-btn" onclick="closeEvening()">Закрыть вечер</button>
+    </div>
+    <div class="tables-grid" id="tables-grid">
+      <div class="tables-empty" style="grid-column:1/-1">
+        Данные появятся после первых заказов.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     FIREBASE
+════════════════════════════════════════════ -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getDatabase, ref, onValue, update, remove, query, orderByChild, equalTo }
+  import { getDatabase, ref, onValue, remove, set, get, serverTimestamp }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-  // ▼▼▼ ВСТАВЬТЕ СЮДА ВАШИ ДАННЫЕ FIREBASE ▼▼▼
+  // ▼▼▼ ВАШИ ДАННЫЕ FIREBASE ▼▼▼
   const firebaseConfig = {
     apiKey: "AIzaSyDC9AK3HtAGvuAdCbtfnWM20LLu12DxzFs",
     authDomain: "bigbear-karaoke.firebaseapp.com",
@@ -406,124 +359,105 @@
   };
   // ▲▲▲ КОНЕЦ НАСТРОЕК ▲▲▲
 
-  function isConfigured() {
-    return !Object.values(firebaseConfig).some(v => v.startsWith('ВАШ') || v.startsWith('ВАШЕ'));
-  }
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
 
-  let db = null;
-  let ordersRef = null;
-  let doneCount = 0;
+  document.getElementById('conn-dot').classList.remove('offline');
+  document.getElementById('conn-text').textContent = 'Онлайн';
+
   let knownKeys = new Set();
 
-  if (isConfigured()) {
-    document.getElementById('cfg-overlay').style.display = 'none';
-    const app = initializeApp(firebaseConfig);
-    db = getDatabase(app);
-    ordersRef = ref(db, 'orders');
+  // ── ORDERS listener ──
+  onValue(ref(db, 'orders'), (snap) => {
+    const data = snap.val() || {};
+    const orders = Object.entries(data)
+      .map(([key, val]) => ({ key, ...val }))
+      .filter(o => o.status === 'pending')
+      .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
 
-    document.getElementById('conn-dot').classList.remove('offline');
-    document.getElementById('conn-text').textContent = 'Онлайн · реальное время';
-
-    onValue(ordersRef, (snapshot) => {
-      const data = snapshot.val() || {};
-      const orders = Object.entries(data)
-        .map(([key, val]) => ({ key, ...val }))
-        .filter(o => o.status === 'pending')
-        .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-
-      // Flash on new order
-      const newKeys = new Set(orders.map(o => o.key));
-      let hasNew = false;
-      newKeys.forEach(k => { if (!knownKeys.has(k)) hasNew = true; });
-      if (hasNew && knownKeys.size > 0) flashNewOrder();
-      knownKeys = newKeys;
-
-      renderOrders(orders);
+    const newKeys = new Set(orders.map(o => o.key));
+    orders.forEach(o => {
+      if (!knownKeys.has(o.key) && knownKeys.size > 0) {
+        showNotif(o.song, o.table);
+        flashScreen();
+        playBeep();
+      }
     });
+    knownKeys = newKeys;
 
-    window._markDone = async function(key) {
-      if (!db || !key) return;
-      const itemRef = ref(db, `orders/${key}`);
-      await remove(itemRef);
-      doneCount++;
-      document.getElementById('stat-done').textContent = doneCount;
-    };
+    renderOrders(orders);
+  });
 
-    window._removeOrder = async function(key) {
-      if (!db || !key) return;
-      const itemRef = ref(db, `orders/${key}`);
-      await remove(itemRef);
-    };
+  // ── STATS listener (done count + table stats) ──
+  onValue(ref(db, 'evening'), (snap) => {
+    const data = snap.val() || {};
+    document.getElementById('stat-done').textContent = data.doneCount || 0;
+    renderTableStats(data.tables || {});
+  });
 
-    window._clearAll = async function() {
-      if (!db) return;
-      await remove(ref(db, 'orders'));
-      doneCount = 0;
-      document.getElementById('stat-done').textContent = 0;
-    };
+  // ── MARK DONE ──
+  window._markDone = async (key, tableNum) => {
+    await remove(ref(db, `orders/${key}`));
+    // increment doneCount
+    const snap = await get(ref(db, 'evening/doneCount'));
+    const cur = snap.val() || 0;
+    await set(ref(db, 'evening/doneCount'), cur + 1);
+    // increment table stat
+    const tKey = `evening/tables/t${tableNum}`;
+    const tSnap = await get(ref(db, tKey));
+    await set(ref(db, tKey), (tSnap.val() || 0) + 1);
+  };
 
-  } else {
-    document.getElementById('conn-dot').classList.add('offline');
-    document.getElementById('conn-text').textContent = 'Демо-режим';
-    // Demo data
-    setTimeout(() => {
-      renderOrders([
-        { key: '1', table: 3, song: 'Руки Вверх — Он тебя целует', timestamp: Date.now() - 300000 },
-        { key: '2', table: 7, song: 'Мумий Тролль — Владивосток 2000', timestamp: Date.now() - 200000 },
-        { key: '3', table: 1, song: 'Земфира — Хочешь', timestamp: Date.now() - 100000 },
-        { key: '4', table: 11, song: 'Дима Билан — Я просто люблю тебя', timestamp: Date.now() - 50000 },
-      ]);
-    }, 800);
-    window._markDone = () => { doneCount++; document.getElementById('stat-done').textContent = doneCount; };
-    window._removeOrder = () => {};
-    window._clearAll = () => {};
-  }
+  window._removeOrder = async (key) => {
+    await remove(ref(db, `orders/${key}`));
+  };
 
-  let currentOrders = [];
+  // ── CLOSE EVENING ──
+  window._closeEvening = async () => {
+    await remove(ref(db, 'orders'));
+    await remove(ref(db, 'evening'));
+  };
 
+  // ── RENDER ORDERS ──
   function renderOrders(orders) {
-    currentOrders = orders;
     const queueList = document.getElementById('queue-list');
     const nowContent = document.getElementById('now-content');
     const doneBtn = document.getElementById('done-btn');
-    const badge = document.getElementById('queue-badge');
 
     document.getElementById('stat-queue').textContent = orders.length;
-    const tables = new Set(orders.map(o => o.table));
-    document.getElementById('stat-tables').textContent = tables.size;
-    badge.textContent = orders.length + ' заявок';
+    const activeTables = new Set(orders.map(o => o.table));
+    document.getElementById('stat-tables').textContent = activeTables.size;
+    document.getElementById('queue-badge').textContent = orders.length + ' заявок';
 
     if (orders.length === 0) {
-      nowContent.innerHTML = `<div class="empty-now"><span class="empty-now-icon">🎧</span>Очередь пуста.<br>Ждём первый заказ!</div>`;
+      nowContent.innerHTML = `<div class="empty-now"><span class="empty-icon">🎧</span>Очередь пуста.<br>Ждём первый заказ.</div>`;
       doneBtn.disabled = true;
-      queueList.innerHTML = `<div class="empty-queue"><span class="empty-queue-icon">🎵</span>Заявок пока нет.<br>Гости могут заказывать через<br>свои телефоны по QR-коду.</div>`;
+      doneBtn.onclick = null;
+      queueList.innerHTML = `<div class="empty-queue"><span class="empty-queue-icon">🎵</span>Заявок пока нет.</div>`;
       return;
     }
 
     const [first, ...rest] = orders;
-    const ts = first.timestamp ? new Date(first.timestamp).toLocaleTimeString('ru', {hour:'2-digit',minute:'2-digit'}) : '';
-
+    const ts = first.timestamp ? new Date(first.timestamp).toLocaleTimeString('ru', { hour:'2-digit', minute:'2-digit' }) : '';
     nowContent.innerHTML = `
       <div class="now-card">
-        <div class="now-playing-label"><div class="playing-dot"></div>Сейчас играет</div>
+        <div class="now-tag"><div class="playing-dot"></div>Сейчас играет</div>
         <div class="now-song">${esc(first.song)}</div>
-        <div class="now-table">
-          <span class="table-badge-dj">Стол №${first.table}</span>
+        <div class="now-meta">
+          <span class="table-chip">Стол №${first.table}</span>
+          ${ts ? `<span class="time-chip">${ts}</span>` : ''}
         </div>
-        <div class="now-time">${ts ? 'Заказано в ' + ts : ''}</div>
-      </div>
-    `;
+      </div>`;
     doneBtn.disabled = false;
-    doneBtn.onclick = () => window._markDone(first.key);
+    doneBtn.onclick = () => window._markDone(first.key, first.table);
 
     if (rest.length === 0) {
-      queueList.innerHTML = `<div class="empty-queue" style="padding:30px"><span style="font-size:24px;display:block;margin-bottom:8px;opacity:0.3">✓</span>Больше заявок нет</div>`;
+      queueList.innerHTML = `<div class="empty-queue" style="padding:28px 20px"><span style="font-size:20px;display:block;margin-bottom:8px;opacity:0.2">✓</span>Больше заявок нет</div>`;
       return;
     }
-
     queueList.innerHTML = '';
     rest.forEach((item, i) => {
-      const t = item.timestamp ? new Date(item.timestamp).toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'}) : '';
+      const t = item.timestamp ? new Date(item.timestamp).toLocaleTimeString('ru', { hour:'2-digit', minute:'2-digit' }) : '';
       const div = document.createElement('div');
       div.className = 'queue-item';
       div.innerHTML = `
@@ -531,51 +465,88 @@
         <div class="q-info">
           <div class="q-song">${esc(item.song)}</div>
           <div class="q-meta">
-            <span class="q-table-tag">Стол №${item.table}</span>
+            <span class="q-table">Стол №${item.table}</span>
             ${t ? `<span class="q-time">${t}</span>` : ''}
           </div>
         </div>
-        <button class="q-skip" onclick="window._removeOrder('${item.key}')">✕</button>
-      `;
+        <button class="q-skip" onclick="window._removeOrder('${item.key}')" title="Удалить">✕</button>`;
       queueList.appendChild(div);
     });
   }
 
-  window.renderOrders = renderOrders;
-  window.getCurrentOrders = () => currentOrders;
+  // ── RENDER TABLE STATS ──
+  const TOTAL_TABLES = 13;
+  function renderTableStats(tables) {
+    const grid = document.getElementById('tables-grid');
 
-  function flashNewOrder() {
+    // Check if any orders at all
+    const hasAny = Object.values(tables).some(v => v > 0);
+
+    grid.innerHTML = '';
+    for (let i = 1; i <= TOTAL_TABLES; i++) {
+      const count = tables[`t${i}`] || 0;
+      const card = document.createElement('div');
+      card.className = 'tbl-stat-card' + (count > 0 ? ' has-orders' : '');
+      card.innerHTML = `
+        <div class="tbl-stat-num">Стол ${i}</div>
+        <div class="tbl-stat-count">${count}</div>
+        <div class="tbl-stat-label">${count === 0 ? 'нет заказов' : pluralSongs(count)}</div>`;
+      grid.appendChild(card);
+    }
+  }
+
+  function pluralSongs(n) {
+    if (n % 10 === 1 && n % 100 !== 11) return 'песня';
+    if ([2,3,4].includes(n % 10) && ![12,13,14].includes(n % 100)) return 'песни';
+    return 'песен';
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function showNotif(song, table) {
+    document.getElementById('notif-song').textContent = song;
+    document.getElementById('notif-table').textContent = `Стол №${table}`;
+    const n = document.getElementById('notif');
+    n.classList.add('show');
+    setTimeout(() => n.classList.remove('show'), 3500);
+  }
+
+  window.flashScreen = function() {
     const f = document.getElementById('flash');
     f.classList.add('flash');
-    // play beep via AudioContext
+    setTimeout(() => f.classList.remove('flash'), 500);
+  };
+</script>
+
+<script>
+  // ── TABS ──
+  function switchTab(name) {
+    document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', ['queue','tables'][i] === name));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+  }
+
+  // ── BEEP ──
+  function playBeep() {
     try {
       const ctx = new AudioContext();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain); gain.connect(ctx.destination);
       osc.frequency.value = 880;
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.4);
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+      osc.start(); osc.stop(ctx.currentTime + 0.45);
     } catch(e) {}
-    setTimeout(() => f.classList.remove('flash'), 600);
   }
 
-  function esc(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
-</script>
-
-<script>
-  function dismissConfig() {
-    document.getElementById('cfg-overlay').style.display = 'none';
-  }
-  function markDone() {
-    // handled by Firebase module via button onclick
-  }
-  function clearAll() {
-    if (confirm('Очистить всю очередь?')) window._clearAll();
+  // ── CLOSE EVENING ──
+  function closeEvening() {
+    if (confirm('Закрыть вечер? Очередь и статистика по столикам будут сброшены.')) {
+      window._closeEvening();
+    }
   }
 </script>
 </body>
