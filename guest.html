@@ -43,6 +43,13 @@
       tableInput.value = tableFromURL;
       tableInput.disabled = true;
       tableDisplay.textContent = tableFromURL;
+      // Скрываем поле ввода, показываем только номер
+      tableInput.style.display = "none";
+      document.getElementById("tableFixed").style.display = "block";
+      document.getElementById("tableFixedNum").textContent = tableFromURL;
+    } else {
+      // Без QR — скрываем блок и показываем поле ввода
+      document.getElementById("tableFixed").style.display = "none";
     }
 
     // ---- Проверяем статус вечера ----
@@ -299,6 +306,23 @@
 
   /* table selector */
   .table-row { display: flex; align-items: center; gap: 10px; }
+  .table-fixed-badge {
+    width: 100%;
+    background: linear-gradient(135deg, rgba(245,200,66,0.12), rgba(255,159,67,0.08));
+    border: 1.5px solid rgba(245,200,66,0.3);
+    border-radius: 14px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .table-fixed-label { color: var(--muted); font-size: 0.85rem; }
+  .table-fixed-num {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 2rem;
+    font-weight: 900;
+    color: var(--accent);
+  }
   .table-badge {
     font-family: 'Unbounded', sans-serif;
     font-size: 2.2rem;
@@ -464,7 +488,15 @@
   <div class="card">
     <div class="card-label"><span class="step-num">1</span> Ваш стол</div>
     <div class="table-row">
-      <div class="table-badge" id="tableDisplay">—</div>
+      <div class="table-badge" id="tableDisplay" style="display:none">—</div>
+      <!-- Показывается когда стол пришёл из QR -->
+      <div id="tableFixed" style="display:none; width:100%;">
+        <div class="table-fixed-badge">
+          <span class="table-fixed-label">📍 Ваш стол</span>
+          <span class="table-fixed-num" id="tableFixedNum">—</span>
+        </div>
+      </div>
+      <!-- Показывается когда стол НЕ пришёл из QR -->
       <input type="number" id="tableNum" min="1" max="13" placeholder="Номер стола (1–13)"
         oninput="document.getElementById('tableDisplay').textContent = this.value || '—'">
     </div>
