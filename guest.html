@@ -26,14 +26,31 @@
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
 
+
   // ============================================================
-  // ЛОГИКА ОПРЕДЕЛЕНИЯ НОМЕРА СТОЛА
-  // Если в URL есть ?table=N — стол берётся оттуда и поле блокируется.
-  // Иначе — гость выбирает сам (запасной вариант).
-  // Пример ссылки для стола 5: https://domain.com/guest.html?table=5
+  // ТАБЛИЦА ТОКЕНОВ — каждый стол имеет уникальный код
+  // Чтобы сменить токены — замените значения и перегенерируйте QR
   // ============================================================
+  const TABLE_TOKENS = {
+    "A6YaMz--MpU": 1,
+    "XFCrmaN3B6A": 2,
+    "SEg41sT70Ro": 3,
+    "JendfUv4VSg": 4,
+    "yFYqtT2YnLU": 5,
+    "G1R2_nDG_vE": 6,
+    "-h_eFNzLBjQ": 7,
+    "8GBHUneSzUM": 8,
+    "Gyw4rf40QHQ": 9,
+    "s_dqYCUnxBg": 10,
+    "8khYW7DPE90": 11,
+    "69thjejTiuQ": 12,
+    "Rapa4Q8DvXw": 13
+  };
+
   const params = new URLSearchParams(window.location.search);
-  const tableFromURL = params.get("table");
+  const token = params.get("t");
+  const tableFromURL = token && TABLE_TOKENS[token] ? String(TABLE_TOKENS[token]) : null;
+
 
   window.addEventListener("DOMContentLoaded", () => {
     const tableInput = document.getElementById("tableNum");
