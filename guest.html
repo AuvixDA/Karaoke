@@ -3,15 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0b0c14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Медведица">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="bear_logo.png">
 <title>Большая Медведица — Заказ песни</title>
 
-<!-- ============================================================
-  FIREBASE CONFIG — замените на данные вашего проекта Firebase
-  Проект → Project Settings → General → Your apps → Config
-  ============================================================ -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getDatabase, ref, push, onValue, set, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getDatabase, ref, push, onValue, set, get, update, remove }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyDC9AK3HtAGvuAdCbtfnWM20LLu12DxzFs",
@@ -23,204 +26,315 @@
     appId: "1:882418443323:web:0dc2e48fc94a02a925e81e"
   };
 
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
-
-
   // ============================================================
-  // ТАБЛИЦА ТОКЕНОВ — каждый стол имеет уникальный код
-  // Чтобы сменить токены — замените значения и перегенерируйте QR
+  // ТАБЛИЦА ТОКЕНОВ
   // ============================================================
   const TABLE_TOKENS = {
-    "A6YaMz--MpU": 1,
-    "XFCrmaN3B6A": 2,
-    "SEg41sT70Ro": 3,
-    "JendfUv4VSg": 4,
-    "yFYqtT2YnLU": 5,
-    "G1R2_nDG_vE": 6,
-    "-h_eFNzLBjQ": 7,
-    "8GBHUneSzUM": 8,
-    "Gyw4rf40QHQ": 9,
-    "s_dqYCUnxBg": 10,
-    "8khYW7DPE90": 11,
-    "69thjejTiuQ": 12,
+    "A6YaMz--MpU": 1,  "XFCrmaN3B6A": 2,  "SEg41sT70Ro": 3,
+    "JendfUv4VSg": 4,  "yFYqtT2YnLU": 5,  "G1R2_nDG_vE": 6,
+    "-h_eFNzLBjQ": 7,  "8GBHUneSzUM": 8,  "Gyw4rf40QHQ": 9,
+    "s_dqYCUnxBg": 10, "8khYW7DPE90": 11, "69thjejTiuQ": 12,
     "Rapa4Q8DvXw": 13
   };
 
-  const params = new URLSearchParams(window.location.search);
-  const token = params.get("t");
-  const tableFromURL = token && TABLE_TOKENS[token] ? String(TABLE_TOKENS[token]) : null;
+  const params      = new URLSearchParams(window.location.search);
+  const token       = params.get("t");
+  const tableFromURL = token
+    ? (TABLE_TOKENS[token] ? String(TABLE_TOKENS[token]) : "INVALID")
+    : null;
 
-
-  window.addEventListener("DOMContentLoaded", () => {
-    const tableInput = document.getElementById("tableNum");
-    const tableDisplay = document.getElementById("tableDisplay");
-
-    if (tableFromURL && +tableFromURL >= 1 && +tableFromURL <= 13) {
-      tableInput.value = tableFromURL;
-      tableInput.disabled = true;
-      tableDisplay.textContent = tableFromURL;
-      // Скрываем поле ввода, показываем только номер
-      tableInput.style.display = "none";
-      document.getElementById("tableFixed").style.display = "block";
-      document.getElementById("tableFixedNum").textContent = tableFromURL;
-    } else {
-      // Без QR — скрываем блок и показываем поле ввода
-      document.getElementById("tableFixed").style.display = "none";
+  // ---- Неверный токен ----
+  if (tableFromURL === "INVALID") {
+    document.addEventListener("DOMContentLoaded", () => showScreen("screenInvalidToken"));
+    // Не инициализируем Firebase — выходим
+  } else {
+    // ---- Нормальная инициализация ----
+    let app, db;
+    try {
+      app = initializeApp(firebaseConfig);
+      db  = getDatabase(app);
+    } catch(e) {
+      document.addEventListener("DOMContentLoaded", () => showOffline());
     }
 
-    // ---- Проверяем статус вечера ----
-    const sessionRef = ref(db, "session/isOpen");
-    onValue(sessionRef, (snap) => {
-      const isOpen = snap.val();
-      if (!isOpen) {
-        showScreen("screenClosed");
+    // Глобальное состояние очереди
+    let globalQueue    = {};
+    let globalPlaying  = null; // id текущей играющей
+
+    window.addEventListener("DOMContentLoaded", () => {
+      const tableInput   = document.getElementById("tableNum");
+      const tableDisplay = document.getElementById("tableDisplay");
+
+      // Установка стола из QR
+      if (tableFromURL) {
+        tableInput.value    = tableFromURL;
+        tableInput.disabled = true;
+        tableDisplay.textContent = tableFromURL;
+        tableInput.style.display = "none";
+        document.getElementById("tableFixed").style.display    = "block";
+        document.getElementById("tableFixedNum").textContent   = tableFromURL;
       } else {
-        if (document.getElementById("screenClosed").classList.contains("active")) {
-          showScreen("screenOrder");
+        document.getElementById("tableFixed").style.display = "none";
+      }
+
+      // ---- Слушаем статус вечера ----
+      onValue(ref(db, "session/isOpen"), (snap) => {
+        const isOpen = snap.val();
+        if (!isOpen) {
+          showScreen("screenClosed");
+        } else {
+          const cur = document.querySelector(".screen.active")?.id;
+          if (cur === "screenClosed" || cur === "screenOffline") {
+            showScreen("screenOrder");
+          }
         }
-      }
+      }, (err) => { showOffline(); });
+
+      // ---- Слушаем текущую играющую ----
+      onValue(ref(db, "session/currentlyPlaying"), (snap) => {
+        globalPlaying = snap.val() || null;
+        updateLiveBanner();
+      });
+
+      // ---- Слушаем очередь ----
+      onValue(ref(db, "queue"), (snap) => {
+        globalQueue = snap.val() || {};
+        updateLiveBanner();
+        updateMyOrderStatus();
+      }, (err) => { showOffline(); });
     });
 
-    // ---- Слушаем очередь — показываем статус активного заказа ----
-    const queueRef = ref(db, "queue");
-    onValue(queueRef, (snap) => {
-      const queue = snap.val() || {};
-      const entries = Object.entries(queue).filter(([, v]) => v.status !== "done" && v.status !== "rejected");
-      const tableNo = tableInput.value;
-      const myEntry = findMyOrder(entries, tableNo);
-      updateStatusWidget(entries, myEntry);
-    });
-  });
+    // ---- Live-табло: «Сейчас поёт / ваша очередь» ----
+    function updateLiveBanner() {
+      const banner    = document.getElementById("liveBanner");
+      const nowEl     = document.getElementById("bannerNow");
+      const posEl     = document.getElementById("bannerPos");
+      const myId      = sessionStorage.getItem("myOrderId");
+      const myTable   = sessionStorage.getItem("myOrderTable");
 
-  // ---- Поиск через iTunes Search API (бесплатно, без ключа) ----
-  // Возвращает треки по запросу: название + исполнитель
-  let searchTimeout = null;
-  window.onSearchInput = function(val) {
-    clearTimeout(searchTimeout);
-    const dropdown = document.getElementById("searchDropdown");
-    if (val.length < 2) { dropdown.innerHTML = ""; dropdown.style.display = "none"; return; }
-    dropdown.innerHTML = "<div class='dd-item dd-loading'>Поиск…</div>";
-    dropdown.style.display = "block";
-
-    searchTimeout = setTimeout(async () => {
-      try {
-        // iTunes Search API — бесплатный, не требует ключа, поддерживает кириллицу
-        const url = `https://itunes.apple.com/search?term=${encodeURIComponent(val)}&media=music&limit=8&country=ru`;
-        const r = await fetch(url);
-        const data = await r.json();
-        renderDropdown(data.results);
-      } catch {
-        dropdown.innerHTML = "<div class='dd-item dd-error'>Ошибка поиска. Введите вручную.</div>";
+      // Кто сейчас поёт
+      if (globalPlaying && globalQueue[globalPlaying]) {
+        const o = globalQueue[globalPlaying];
+        nowEl.textContent = `🎤 Сейчас поёт: Стол ${o.table}${o.name && o.name !== "Гость" ? " · " + o.name : ""}`;
+        nowEl.style.display = "block";
+      } else {
+        nowEl.textContent   = "🎧 Сейчас никто не поёт";
+        nowEl.style.display = "block";
       }
-    }, 400);
-  };
 
-  function renderDropdown(results) {
-    const dropdown = document.getElementById("searchDropdown");
-    if (!results || results.length === 0) {
-      dropdown.innerHTML = "<div class='dd-item dd-error'>Ничего не найдено. Введите вручную.</div>";
-      return;
+      // Позиция моей песни
+      if (myId && globalQueue[myId]) {
+        const myOrder  = globalQueue[myId];
+        if (myOrder.status === "waiting") {
+          const waiting  = Object.entries(globalQueue)
+            .filter(([,v]) => v.status === "waiting")
+            .sort(([,a],[,b]) => (a.ts||0) - (b.ts||0));
+          const pos = waiting.findIndex(([id]) => id === myId) + 1;
+          if (pos === 1) {
+            posEl.textContent = "⚡ Вы следующие — приготовьтесь!";
+          } else if (pos > 1) {
+            posEl.textContent = `🎶 Ваша песня через ${pos - 1} ${plural(pos-1, "трек","трека","треков")}`;
+          }
+          posEl.style.display = "block";
+        } else {
+          posEl.style.display = "none";
+        }
+        banner.style.display = "block";
+      } else if (globalPlaying && globalQueue[globalPlaying]) {
+        posEl.style.display  = "none";
+        banner.style.display = "block";
+      } else {
+        // Показываем баннер только если есть очередь
+        const hasQueue = Object.values(globalQueue).some(v => v.status === "waiting");
+        banner.style.display = hasQueue || (globalPlaying && globalQueue[globalPlaying]) ? "block" : "none";
+      }
     }
-    dropdown.innerHTML = results.map(t =>
-      `<div class="dd-item" onclick="selectTrack('${esc(t.trackName)}','${esc(t.artistName)}')">
-        <span class="dd-track">${t.trackName}</span>
-        <span class="dd-artist">${t.artistName}</span>
-      </div>`
-    ).join("");
-  }
 
-  function esc(s) { return (s||"").replace(/'/g, "\\'").replace(/"/g, "&quot;"); }
-
-  window.selectTrack = function(track, artist) {
-    document.getElementById("songInput").value = `${track} — ${artist}`;
-    document.getElementById("searchDropdown").style.display = "none";
-  };
-
-  // ---- Отправка заявки ----
-  window.submitOrder = async function() {
-    const tableNo = document.getElementById("tableNum").value.trim();
-    const song    = document.getElementById("songInput").value.trim();
-    const name    = document.getElementById("guestName").value.trim();
-
-    if (!tableNo || +tableNo < 1 || +tableNo > 13) {
-      alert("Укажите номер стола (1–13)"); return;
+    function plural(n, one, few, many) {
+      const m = Math.abs(n) % 100;
+      const m1 = m % 10;
+      if (m > 10 && m < 20) return many;
+      if (m1 > 1 && m1 < 5) return few;
+      if (m1 === 1) return one;
+      return many;
     }
-    if (!song) { alert("Введите название песни"); return; }
 
-    // ---- АНТИ-СПАМ: не более 2 активных заявок от стола ----
-    const queueSnap = await get(ref(db, "queue"));
-    const queue = queueSnap.val() || {};
-    const activeFromTable = Object.values(queue).filter(
-      v => String(v.table) === String(tableNo) && v.status !== "done" && v.status !== "rejected"
-    );
-    if (activeFromTable.length >= 2) {
-      document.getElementById("spamWarning").style.display = "block";
-      return;
+    // ---- Статус моего заказа (экран успеха) ----
+    function updateMyOrderStatus() {
+      const myId = sessionStorage.getItem("myOrderId");
+      if (!myId) return;
+      const order = globalQueue[myId];
+      const widget = document.getElementById("statusWidget");
+      if (!order) { widget.style.display = "none"; return; }
+
+      const waiting = Object.entries(globalQueue)
+        .filter(([,v]) => v.status === "waiting")
+        .sort(([,a],[,b]) => (a.ts||0) - (b.ts||0));
+      const pos = waiting.findIndex(([id]) => id === myId) + 1;
+
+      widget.style.display = "block";
+      if (order.status === "rejected") {
+        widget.className = "status-widget status-rejected";
+        widget.innerHTML = `😞 Ваша заявка отклонена диджеем
+          <button class="btn-cancel-order" onclick="window.cancelOrder()">Заказать другую</button>`;
+      } else if (order.status === "playing") {
+        widget.className = "status-widget status-playing";
+        widget.innerHTML = "🎤 Ваша песня звучит прямо сейчас!";
+      } else if (order.status === "done") {
+        widget.className = "status-widget status-done";
+        widget.innerHTML = "✅ Ваша песня сыграна! Хотите ещё?";
+      } else if (pos === 1) {
+        widget.className = "status-widget status-next";
+        widget.innerHTML = "⚡ Приготовьтесь — вы следующие!";
+      } else {
+        widget.className = "status-widget status-waiting";
+        widget.innerHTML = `🎶 Ваша песня №${pos} в очереди`;
+      }
     }
-    document.getElementById("spamWarning").style.display = "none";
 
-    const order = {
-      table:  +tableNo,
-      song,
-      name:   name || "Гость",
-      status: "waiting",   // waiting | playing | done | rejected
-      ts:     Date.now()
+    // ---- Отмена своей заявки гостем ----
+    window.cancelMyOrder = async function() {
+      const myId = sessionStorage.getItem("myOrderId");
+      if (!myId || !globalQueue[myId]) return;
+      if (globalQueue[myId].status !== "waiting") return;
+      if (!confirm("Отменить заявку на эту песню?")) return;
+      await remove(ref(db, `queue/${myId}`));
+      sessionStorage.removeItem("myOrderId");
+      sessionStorage.removeItem("myOrderTable");
+      showScreen("screenOrder");
     };
 
-    const newRef = await push(ref(db, "queue"), order);
-    // Сохраняем ID заказа в sessionStorage, чтобы отслеживать статус
-    sessionStorage.setItem("myOrderId", newRef.key);
-    sessionStorage.setItem("myOrderTable", tableNo);
+    // ---- Поиск через iTunes API ----
+    let searchTimeout = null;
+    window.onSearchInput = function(val) {
+      clearTimeout(searchTimeout);
+      const dropdown = document.getElementById("searchDropdown");
+      if (val.length < 2) {
+        dropdown.innerHTML = "";
+        dropdown.style.display = "none";
+        return;
+      }
+      dropdown.innerHTML = "<div class='dd-item dd-loading'>Поиск…</div>";
+      dropdown.style.display = "block";
 
-    showScreen("screenSuccess");
-    document.getElementById("successSong").textContent  = song;
-    document.getElementById("successTable").textContent = tableNo;
-    document.getElementById("successTime").textContent  = new Date().toLocaleTimeString("ru-RU", {hour:"2-digit",minute:"2-digit"});
-  };
+      searchTimeout = setTimeout(async () => {
+        try {
+          const url = `https://itunes.apple.com/search?term=${encodeURIComponent(val)}&media=music&limit=8&country=ru`;
+          const r = await fetch(url);
+          const data = await r.json();
+          renderDropdown(data.results);
+        } catch {
+          dropdown.innerHTML = "<div class='dd-item dd-error'>Ошибка поиска. Введите вручную.</div>";
+        }
+      }, 400);
+    };
 
-  // ---- Трекинг очереди ----
-  function findMyOrder(entries, table) {
-    const myId = sessionStorage.getItem("myOrderId");
-    return entries.find(([id]) => id === myId) || null;
-  }
-
-  function updateStatusWidget(entries, myEntry) {
-    const widget = document.getElementById("statusWidget");
-    if (!myEntry || document.getElementById("screenSuccess").classList.contains("active") === false) {
-      widget.style.display = "none"; return;
+    function renderDropdown(results) {
+      const dropdown = document.getElementById("searchDropdown");
+      if (!results || results.length === 0) {
+        dropdown.innerHTML = "<div class='dd-item dd-error'>Ничего не найдено. Введите вручную.</div>";
+        return;
+      }
+      dropdown.innerHTML = results.map(t =>
+        `<div class="dd-item" onclick="selectTrack('${esc(t.trackName)}','${esc(t.artistName)}')">
+          <span class="dd-track">${t.trackName}</span>
+          <span class="dd-artist">${t.artistName}</span>
+        </div>`
+      ).join("");
     }
-    const [, order] = myEntry;
-    const pos = entries.filter(([,v]) => v.status === "waiting").findIndex(([id]) => id === myEntry[0]) + 1;
 
-    widget.style.display = "block";
-    if (order.status === "rejected") {
-      widget.className = "status-widget status-rejected";
-      widget.innerHTML = "😞 Ваша заявка отклонена диджеем";
-    } else if (order.status === "playing") {
-      widget.className = "status-widget status-playing";
-      widget.innerHTML = "🎤 Ваша песня звучит прямо сейчас!";
-    } else if (pos === 1) {
-      widget.className = "status-widget status-next";
-      widget.innerHTML = "⚡ Приготовьтесь — вы следующие!";
-    } else {
-      widget.className = "status-widget status-waiting";
-      widget.innerHTML = `🎶 Ваша песня №${pos} в очереди`;
+    function esc(s) { return (s||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'").replace(/"/g,"&quot;"); }
+
+    window.selectTrack = function(track, artist) {
+      document.getElementById("songInput").value = `${track} — ${artist}`;
+      document.getElementById("searchDropdown").style.display = "none";
+    };
+
+    // ---- Отправка заявки ----
+    window.submitOrder = async function() {
+      const tableNo = document.getElementById("tableNum").value.trim();
+      const song    = document.getElementById("songInput").value.trim();
+      const name    = document.getElementById("guestName").value.trim();
+
+      if (!tableNo || +tableNo < 1 || +tableNo > 13) {
+        alert("Укажите номер стола (1–13)"); return;
+      }
+      if (!song) { alert("Введите название песни"); return; }
+
+      // Анти-спам: не более 2 активных заявок от стола
+      const queueSnap = await get(ref(db, "queue"));
+      const queue     = queueSnap.val() || {};
+      const activeFromTable = Object.values(queue).filter(
+        v => String(v.table) === String(tableNo) &&
+             v.status !== "done" && v.status !== "rejected"
+      );
+      if (activeFromTable.length >= 2) {
+        document.getElementById("spamWarning").style.display = "block";
+        return;
+      }
+      document.getElementById("spamWarning").style.display = "none";
+
+      const btn = document.querySelector(".btn-primary");
+      btn.disabled = true;
+      btn.textContent = "Отправляем…";
+
+      try {
+        const order = {
+          table:  +tableNo,
+          song,
+          name:   name || "Гость",
+          status: "waiting",
+          ts:     Date.now()
+        };
+        const newRef = await push(ref(db, "queue"), order);
+        sessionStorage.setItem("myOrderId",    newRef.key);
+        sessionStorage.setItem("myOrderTable", tableNo);
+
+        showScreen("screenSuccess");
+        document.getElementById("successSong").textContent  = song;
+        document.getElementById("successTable").textContent = tableNo;
+        document.getElementById("successTime").textContent  =
+          new Date().toLocaleTimeString("ru-RU", {hour:"2-digit", minute:"2-digit"});
+      } catch(e) {
+        alert("Ошибка отправки. Проверьте соединение и попробуйте ещё раз.");
+      } finally {
+        btn.disabled    = false;
+        btn.textContent = "🎤 Заказать песню";
+      }
+    };
+
+    window.cancelOrder = function() {
+      sessionStorage.removeItem("myOrderId");
+      document.getElementById("songInput").value = "";
+      document.getElementById("guestName").value = "";
+      document.getElementById("spamWarning").style.display = "none";
+      showScreen("screenOrder");
+    };
+
+    window.resetForm = function() {
+      sessionStorage.removeItem("myOrderId");
+      document.getElementById("songInput").value = "";
+      document.getElementById("guestName").value = "";
+      document.getElementById("spamWarning").style.display = "none";
+      showScreen("screenOrder");
+    };
+
+    function showOffline() {
+      showScreen("screenOffline");
+    }
+
+    // PWA: регистрация service worker
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
     }
   }
-
-  window.resetForm = function() {
-    sessionStorage.removeItem("myOrderId");
-    document.getElementById("songInput").value = "";
-    document.getElementById("guestName").value = "";
-    document.getElementById("spamWarning").style.display = "none";
-    showScreen("screenOrder");
-  };
 
   function showScreen(id) {
     document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
-    document.getElementById(id).classList.add("active");
+    const el = document.getElementById(id);
+    if (el) el.classList.add("active");
   }
+  window.showScreen = showScreen;
 </script>
 
 <style>
@@ -232,14 +346,13 @@
     --card:    #1a1b2e;
     --accent:  #f5c842;
     --accent2: #ff6b6b;
+    --green:   #2ed573;
     --text:    #f0edf6;
     --muted:   #7c7a90;
     --radius:  18px;
   }
 
-  .bear-logo { width: 90px; height: 90px; object-fit: contain; filter: drop-shadow(0 0 12px rgba(245,200,66,0.35)); margin-bottom: 6px; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-
   body {
     background: var(--bg);
     color: var(--text);
@@ -255,136 +368,115 @@
   .header {
     width: 100%;
     text-align: center;
-    padding: 32px 20px 20px;
+    padding: 28px 20px 16px;
     background: linear-gradient(180deg, #1a0a3a 0%, transparent 100%);
   }
-  .header .bear { font-size: 44px; margin-bottom: 6px; }
+  .bear-logo { width: 80px; height: 80px; object-fit: contain;
+    filter: drop-shadow(0 0 12px rgba(245,200,66,0.35)); margin-bottom: 6px; }
   .header h1 {
     font-family: 'Unbounded', sans-serif;
-    font-size: 1.35rem;
-    font-weight: 900;
-    letter-spacing: -0.03em;
+    font-size: 1.3rem; font-weight: 900; letter-spacing: -0.03em;
     background: linear-gradient(135deg, var(--accent), #ff9f43);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
   }
-  .header .sub { color: var(--muted); font-size: 0.8rem; margin-top: 4px; }
+  .header .sub { color: var(--muted); font-size: 0.78rem; margin-top: 4px; }
 
   /* ---- SCREENS ---- */
   .screen { display: none; width: 100%; max-width: 440px; padding: 0 16px; }
   .screen.active { display: block; }
 
-  /* ---- CLOSED SCREEN ---- */
-  #screenClosed {
-    text-align: center;
-    padding: 60px 20px;
+  /* ---- LIVE BANNER ---- */
+  #liveBanner {
+    display: none;
+    width: 100%; max-width: 440px;
+    margin: 0 16px 14px;
+    padding: 0 16px;
   }
-  #screenClosed .emoji { font-size: 64px; margin-bottom: 20px; }
-  #screenClosed h2 {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 1.1rem;
-    margin-bottom: 12px;
-    color: var(--accent);
+  .banner-inner {
+    background: linear-gradient(135deg, rgba(245,200,66,0.08), rgba(255,159,67,0.05));
+    border: 1px solid rgba(245,200,66,0.2);
+    border-radius: 14px;
+    padding: 12px 16px;
   }
-  #screenClosed p { color: var(--muted); font-size: 0.9rem; line-height: 1.6; }
+  #bannerNow {
+    font-size: 0.85rem; font-weight: 700; color: var(--accent);
+    display: none; margin-bottom: 4px;
+  }
+  #bannerPos {
+    font-size: 0.82rem; color: var(--muted);
+    display: none;
+  }
+
+  /* ---- CLOSED / OFFLINE / INVALID ---- */
+  .info-screen {
+    text-align: center; padding: 60px 20px;
+  }
+  .info-screen .emoji { font-size: 64px; margin-bottom: 20px; }
+  .info-screen h2 {
+    font-family: 'Unbounded', sans-serif; font-size: 1.1rem;
+    margin-bottom: 12px; color: var(--accent);
+  }
+  .info-screen p { color: var(--muted); font-size: 0.9rem; line-height: 1.6; }
+  .info-screen .bear-big {
+    width: 100px; height: 100px; object-fit: contain;
+    filter: drop-shadow(0 0 16px rgba(245,200,66,0.4));
+    margin-bottom: 20px;
+  }
 
   /* ---- ORDER SCREEN ---- */
   .card {
-    background: var(--card);
-    border-radius: var(--radius);
-    padding: 20px;
-    margin-bottom: 14px;
+    background: var(--card); border-radius: var(--radius);
+    padding: 20px; margin-bottom: 14px;
     border: 1px solid rgba(245,200,66,0.08);
   }
   .card-label {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 0.65rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--accent);
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    font-family: 'Unbounded', sans-serif; font-size: 0.65rem; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
   }
-  .card-label .step-num {
-    width: 22px; height: 22px;
-    background: var(--accent);
-    color: #000;
-    border-radius: 50%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.7rem;
-    flex-shrink: 0;
+  .step-num {
+    width: 22px; height: 22px; background: var(--accent); color: #000;
+    border-radius: 50%; display: inline-flex; align-items: center;
+    justify-content: center; font-size: 0.7rem; flex-shrink: 0;
   }
 
-  /* table selector */
   .table-row { display: flex; align-items: center; gap: 10px; }
   .table-fixed-badge {
     width: 100%;
     background: linear-gradient(135deg, rgba(245,200,66,0.12), rgba(255,159,67,0.08));
     border: 1.5px solid rgba(245,200,66,0.3);
-    border-radius: 14px;
-    padding: 14px 18px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+    border-radius: 14px; padding: 14px 18px;
+    display: flex; align-items: center; justify-content: space-between;
   }
   .table-fixed-label { color: var(--muted); font-size: 0.85rem; }
   .table-fixed-num {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 2rem;
-    font-weight: 900;
-    color: var(--accent);
+    font-family: 'Unbounded', sans-serif; font-size: 2rem;
+    font-weight: 900; color: var(--accent);
   }
-  .table-badge {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 2.2rem;
-    font-weight: 900;
-    color: var(--accent);
-    min-width: 52px;
-    text-align: center;
-  }
+
   select, input[type="text"], input[type="number"] {
-    width: 100%;
-    background: var(--surface);
+    width: 100%; background: var(--surface);
     border: 1.5px solid rgba(255,255,255,0.08);
-    border-radius: 12px;
-    color: var(--text);
-    font-family: 'Nunito', sans-serif;
-    font-size: 1rem;
-    padding: 13px 16px;
-    outline: none;
-    transition: border-color 0.2s;
+    border-radius: 12px; color: var(--text);
+    font-family: 'Nunito', sans-serif; font-size: 1rem;
+    padding: 13px 16px; outline: none; transition: border-color 0.2s;
     -webkit-appearance: none;
   }
   select:focus, input:focus { border-color: var(--accent); }
-  select:disabled, input:disabled {
-    opacity: 0.6; cursor: not-allowed;
-  }
+  select:disabled, input:disabled { opacity: 0.6; cursor: not-allowed; }
 
   /* search */
   .search-wrap { position: relative; }
   #searchDropdown {
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0; right: 0;
-    background: #22233a;
-    border: 1.5px solid rgba(245,200,66,0.2);
-    border-radius: 12px;
-    z-index: 100;
-    max-height: 220px;
-    overflow-y: auto;
-    display: none;
+    position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+    background: #22233a; border: 1.5px solid rgba(245,200,66,0.2);
+    border-radius: 12px; z-index: 100; max-height: 220px;
+    overflow-y: auto; display: none;
   }
   .dd-item {
-    padding: 10px 14px;
-    cursor: pointer;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-    transition: background 0.15s;
+    padding: 10px 14px; cursor: pointer;
+    border-bottom: 1px solid rgba(255,255,255,0.05); transition: background 0.15s;
   }
   .dd-item:last-child { border-bottom: none; }
   .dd-item:hover { background: rgba(245,200,66,0.1); }
@@ -394,96 +486,90 @@
 
   /* spam warning */
   #spamWarning {
-    display: none;
-    background: rgba(255,107,107,0.12);
-    border: 1px solid var(--accent2);
-    border-radius: 12px;
-    padding: 12px 16px;
-    font-size: 0.85rem;
-    color: var(--accent2);
-    margin-bottom: 14px;
-    line-height: 1.5;
+    display: none; background: rgba(255,107,107,0.12);
+    border: 1px solid var(--accent2); border-radius: 12px;
+    padding: 12px 16px; font-size: 0.85rem; color: var(--accent2);
+    margin-bottom: 14px; line-height: 1.5;
   }
 
-  /* submit button */
+  /* buttons */
   .btn-primary {
     width: 100%;
     background: linear-gradient(135deg, var(--accent), #ff9f43);
-    color: #000;
-    border: none;
-    border-radius: 14px;
-    font-family: 'Unbounded', sans-serif;
-    font-weight: 700;
-    font-size: 1rem;
-    padding: 17px;
-    cursor: pointer;
-    letter-spacing: -0.02em;
-    transition: transform 0.15s, box-shadow 0.15s;
+    color: #000; border: none; border-radius: 14px;
+    font-family: 'Unbounded', sans-serif; font-weight: 700;
+    font-size: 1rem; padding: 17px; cursor: pointer;
+    letter-spacing: -0.02em; transition: transform 0.15s, box-shadow 0.15s;
     box-shadow: 0 6px 24px rgba(245,200,66,0.25);
   }
   .btn-primary:active { transform: scale(0.97); }
+  .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
   .btn-ghost {
-    width: 100%;
-    background: transparent;
-    color: var(--accent);
-    border: 1.5px solid var(--accent);
-    border-radius: 14px;
-    font-family: 'Unbounded', sans-serif;
-    font-weight: 700;
-    font-size: 0.9rem;
-    padding: 15px;
-    cursor: pointer;
-    margin-top: 12px;
+    width: 100%; background: transparent; color: var(--accent);
+    border: 1.5px solid var(--accent); border-radius: 14px;
+    font-family: 'Unbounded', sans-serif; font-weight: 700;
+    font-size: 0.9rem; padding: 15px; cursor: pointer; margin-top: 12px;
     transition: background 0.15s;
   }
   .btn-ghost:hover { background: rgba(245,200,66,0.08); }
 
   /* ---- SUCCESS SCREEN ---- */
   #screenSuccess { text-align: center; padding: 10px 16px 0; }
-  .success-icon { font-size: 72px; margin: 20px 0 16px; animation: pop 0.4s cubic-bezier(.36,1.56,.64,1) both; }
+  .success-icon { font-size: 72px; margin: 20px 0 16px;
+    animation: pop 0.4s cubic-bezier(.36,1.56,.64,1) both; }
   @keyframes pop { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
   .success-title {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 1.3rem;
-    font-weight: 900;
+    font-family: 'Unbounded', sans-serif; font-size: 1.3rem; font-weight: 900;
     background: linear-gradient(135deg, var(--accent), #ff9f43);
     -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
     margin-bottom: 8px;
   }
   .success-sub { color: var(--muted); font-size: 0.88rem; margin-bottom: 24px; }
   .success-card {
-    background: var(--card);
-    border-radius: var(--radius);
-    padding: 18px 20px;
-    margin-bottom: 20px;
-    text-align: left;
-    border: 1px solid rgba(245,200,66,0.12);
+    background: var(--card); border-radius: var(--radius); padding: 18px 20px;
+    margin-bottom: 20px; text-align: left; border: 1px solid rgba(245,200,66,0.12);
   }
-  .success-row { display: flex; justify-content: space-between; padding: 6px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.9rem; }
+  .success-row {
+    display: flex; justify-content: space-between; padding: 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.9rem;
+  }
   .success-row:last-child { border-bottom: none; }
   .success-row .key { color: var(--muted); }
   .success-row .val { font-weight: 700; max-width: 60%; text-align: right; }
 
   /* status widget */
   .status-widget {
-    display: none;
-    border-radius: 12px;
-    padding: 14px 16px;
-    font-weight: 700;
-    font-size: 0.95rem;
-    margin-bottom: 16px;
-    text-align: center;
+    display: none; border-radius: 12px; padding: 14px 16px;
+    font-weight: 700; font-size: 0.95rem; margin-bottom: 16px; text-align: center;
   }
-  .status-waiting  { background: rgba(245,200,66,0.12); color: var(--accent); border: 1px solid rgba(245,200,66,0.3); }
-  .status-next     { background: rgba(255,159,67,0.15);  color: #ff9f43;      border: 1px solid rgba(255,159,67,0.4); animation: pulse 1.2s infinite; }
-  .status-playing  { background: rgba(46,213,115,0.12);  color: #2ed573;      border: 1px solid rgba(46,213,115,0.3); animation: pulse 0.8s infinite; }
-  .status-rejected { background: rgba(255,107,107,0.12); color: var(--accent2); border: 1px solid rgba(255,107,107,0.3); }
+  .status-waiting  { background: rgba(245,200,66,0.12);  color: var(--accent);  border: 1px solid rgba(245,200,66,0.3); }
+  .status-next     { background: rgba(255,159,67,0.15);   color: #ff9f43;        border: 1px solid rgba(255,159,67,0.4); animation: pulse 1.2s infinite; }
+  .status-playing  { background: rgba(46,213,115,0.12);   color: var(--green);   border: 1px solid rgba(46,213,115,0.3); animation: pulse 0.8s infinite; }
+  .status-rejected { background: rgba(255,107,107,0.12);  color: var(--accent2); border: 1px solid rgba(255,107,107,0.3); }
+  .status-done     { background: rgba(46,213,115,0.08);   color: var(--green);   border: 1px solid rgba(46,213,115,0.2); }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
+
+  .btn-cancel-order {
+    display: block; margin: 10px auto 0; background: transparent;
+    color: var(--accent2); border: 1px solid var(--accent2);
+    border-radius: 8px; padding: 6px 16px; font-size: 0.8rem;
+    font-family: 'Nunito', sans-serif; font-weight: 700; cursor: pointer;
+  }
+
+  /* offline banner */
+  .offline-bar {
+    display: none; width: 100%; background: rgba(255,107,107,0.15);
+    border-bottom: 1px solid var(--accent2); padding: 10px 16px;
+    text-align: center; font-size: 0.82rem; color: var(--accent2);
+    font-weight: 700;
+  }
 </style>
 </head>
 <body>
+
+<!-- Offline-полоска (если потеряли соединение временно) -->
+<div class="offline-bar" id="offlineBar">⚠️ Нет соединения — проверьте интернет</div>
 
 <div class="header">
   <img src="bear_logo.png" class="bear-logo" alt="Большая Медведица">
@@ -491,41 +577,57 @@
   <div class="sub">Karaoke Bar · Благовещенск</div>
 </div>
 
+<!-- LIVE-ТАБЛО — показывается поверх всех экранов кроме закрытого/ошибки -->
+<div id="liveBanner">
+  <div class="banner-inner">
+    <div id="bannerNow"></div>
+    <div id="bannerPos"></div>
+  </div>
+</div>
+
 <!-- ЭКРАН: вечер закрыт -->
-<div class="screen active" id="screenClosed">
+<div class="screen active info-screen" id="screenClosed">
   <div class="emoji">🌙</div>
   <h2>Вечер ещё не начался</h2>
   <p>Система заказов пока недоступна.<br>Диджей откроет вечер совсем скоро — заходите позже!</p>
 </div>
 
+<!-- ЭКРАН: нет соединения -->
+<div class="screen info-screen" id="screenOffline">
+  <div class="emoji">📡</div>
+  <h2>Нет соединения</h2>
+  <p>Проверьте интернет и обновите страницу.<br>Если проблема повторяется — обратитесь к официанту.</p>
+</div>
+
+<!-- ЭКРАН: неверный QR-токен -->
+<div class="screen info-screen" id="screenInvalidToken">
+  <img src="bear_logo.png" class="bear-big" alt="">
+  <h2>Неверный QR-код</h2>
+  <p>Этот QR-код недействителен или устарел.<br><br>
+  <strong style="color:var(--accent)">Обратитесь к официанту</strong> — он поможет со свежим кодом.</p>
+</div>
+
 <!-- ЭКРАН: заказ песни -->
 <div class="screen" id="screenOrder">
 
-  <!-- Шаг 1: Стол -->
   <div class="card">
     <div class="card-label"><span class="step-num">1</span> Ваш стол</div>
     <div class="table-row">
-      <div class="table-badge" id="tableDisplay" style="display:none">—</div>
-      <!-- Показывается когда стол пришёл из QR -->
       <div id="tableFixed" style="display:none; width:100%;">
         <div class="table-fixed-badge">
           <span class="table-fixed-label">📍 Ваш стол</span>
           <span class="table-fixed-num" id="tableFixedNum">—</span>
         </div>
       </div>
-      <!-- Показывается когда стол НЕ пришёл из QR -->
-      <input type="number" id="tableNum" min="1" max="13" placeholder="Номер стола (1–13)"
-        oninput="document.getElementById('tableDisplay').textContent = this.value || '—'">
+      <input type="number" id="tableNum" min="1" max="13" placeholder="Номер стола (1–13)">
     </div>
   </div>
 
-  <!-- Шаг 2: Ваше имя -->
   <div class="card">
     <div class="card-label"><span class="step-num">2</span> Ваше имя</div>
     <input type="text" id="guestName" placeholder="Как вас объявить? (необязательно)" maxlength="30">
   </div>
 
-  <!-- Шаг 3: Песня -->
   <div class="card">
     <div class="card-label"><span class="step-num">3</span> Найдите песню</div>
     <div class="search-wrap">
@@ -535,7 +637,6 @@
     </div>
   </div>
 
-  <!-- Анти-спам -->
   <div id="spamWarning">
     ⛔ Ваш стол уже добавил 2 песни в очередь.<br>
     Дождитесь, пока исполнится хотя бы одна из них.
@@ -546,16 +647,19 @@
 
 <!-- ЭКРАН: успех -->
 <div class="screen" id="screenSuccess">
-  <div class="status-widget" id="statusWidget"></div>
-  <div class="success-icon">🎉</div>
-  <div class="success-title">Заявка принята!</div>
-  <div class="success-sub">Ваша песня отправлена диджею.<br>Ожидайте своей очереди!</div>
-  <div class="success-card">
-    <div class="success-row"><span class="key">Стол</span><span class="val" id="successTable">—</span></div>
-    <div class="success-row"><span class="key">Песня</span><span class="val" id="successSong">—</span></div>
-    <div class="success-row"><span class="key">Время</span><span class="val" id="successTime">—</span></div>
+  <div style="text-align:center; padding: 10px 0 0;">
+    <div class="status-widget" id="statusWidget"></div>
+    <div class="success-icon">🎉</div>
+    <div class="success-title">Заявка принята!</div>
+    <div class="success-sub">Ваша песня отправлена диджею.<br>Ожидайте своей очереди!</div>
+    <div class="success-card">
+      <div class="success-row"><span class="key">Стол</span><span class="val" id="successTable">—</span></div>
+      <div class="success-row"><span class="key">Песня</span><span class="val" id="successSong">—</span></div>
+      <div class="success-row"><span class="key">Время</span><span class="val" id="successTime">—</span></div>
+    </div>
+    <button class="btn-primary" onclick="resetForm()">🎶 Заказать ещё одну</button>
+    <button class="btn-ghost" onclick="cancelMyOrder()">✕ Отменить эту заявку</button>
   </div>
-  <button class="btn-primary" onclick="resetForm()">🎶 Заказать ещё</button>
 </div>
 
 </body>
