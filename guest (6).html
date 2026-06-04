@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Большая Медведица — Заказ песни</title>
+
+<!-- ============================================================
+  FIREBASE CONFIG — замените на данные вашего проекта Firebase
+  Проект → Project Settings → General → Your apps → Config
+  ============================================================ -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, push, onValue, set, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDC9AK3HtAGvuAdCbtfnWM20LLu12DxzFs",
+    authDomain: "bigbear-karaoke.firebaseapp.com",
+    databaseURL: "https://bigbear-karaoke-default-rtdb.firebaseio.com",
+    projectId: "bigbear-karaoke",
+    storageBucket: "bigbear-karaoke.firebasestorage.app",
+    messagingSenderId: "882418443323",
+    appId: "1:882418443323:web:0dc2e48fc94a02a925e81e"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  // ============================================================
+  // ЛОГИКА ОПРЕДЕЛЕНИЯ НОМЕРА СТОЛА
+  // Если в URL есть ?table=N — стол берётся оттуда и поле блокируется.
+  // Иначе — гость выбирает сам (запасной вариант).
+  // Пример ссылки для стола 5: https://domain.com/guest.html?table=5
+  // ============================================================
+  const params = new URLSearchParams(window.location.search);
+  const tableFromURL = params.get("table");
+
+  window.addEventListener("DOMContentLoaded", () => {
+    const tableInput = document.getElementById("tableNum");
+    const tableDisplay = document.getElementById("tableDisplay");
+
+    if (tableFromURL && +tableFromURL >= 1 && +tableFromURL <= 13) {
+      tableInput.value = tableFromURL;
+      tableInput.disabled = true;
+      tableDisplay.textContent = tableFromURL;
+    }
+
+    // ---- Проверяем статус вечера ----
+    const sessionRef = ref(db, "session/isOpen");
+    onValue(sessionRef, (snap) => {
+      const isOpen = snap.val();
+      if (!isOpen) {
+        showScreen("screenClosed");
+      } else {
+        if (document.getElementById("screenClosed").classList.contains("active")) {
+          showScreen("screenOrder");
+        }
+      }
+    });
+
+    // ---- Слушаем очередь — показываем статус активного заказа ----
+    const queueRef = ref(db, "queue");
+    onValue(queueRef, (snap) => {
+      const queue = snap.val() || {};
+      const entries = Object.entries(queue).filter(([, v]) => v.status !== "done" && v.status !== "rejected");
+      const tableNo = tableInput.value;
+      const myEntry = findMyOrder(entries, tableNo);
+      updateStatusWidget(entries, myEntry);
+    });
+  });
+
+  // ---- Поиск через iTunes Search API (бесплатно, без ключа) ----
+  // Возвращает треки по запросу: название + исполнитель
+  let searchTimeout = null;
+  window.onSearchInput = function(val) {
+    clearTimeout(searchTimeout);
+    const dropdown = document.getElementById("searchDropdown");
+    if (val.length < 2) { dropdown.innerHTML = ""; dropdown.style.display = "none"; return; }
+    dropdown.innerHTML = "<div class='dd-item dd-loading'>Поиск…</div>";
+    dropdown.style.display = "block";
+
+    searchTimeout = setTimeout(async () => {
+      try {
+        // iTunes Search API — бесплатный, не требует ключа, поддерживает кириллицу
+        const url = `https://itunes.apple.com/search?term=${encodeURIComponent(val)}&media=music&limit=8&country=ru`;
+        const r = await fetch(url);
+        const data = await r.json();
+        renderDropdown(data.results);
+      } catch {
+        dropdown.innerHTML = "<div class='dd-item dd-error'>Ошибка поиска. Введите вручную.</div>";
+      }
+    }, 400);
+  };
+
+  function renderDropdown(results) {
+    const dropdown = document.getElementById("searchDropdown");
+    if (!results || results.length === 0) {
+      dropdown.innerHTML = "<div class='dd-item dd-error'>Ничего не найдено. Введите вручную.</div>";
+      return;
+    }
+    dropdown.innerHTML = results.map(t =>
+      `<div class="dd-item" onclick="selectTrack('${esc(t.trackName)}','${esc(t.artistName)}')">
+        <span class="dd-track">${t.trackName}</span>
+        <span class="dd-artist">${t.artistName}</span>
+      </div>`
+    ).join("");
+  }
+
+  function esc(s) { return (s||"").replace(/'/g, "\\'").replace(/"/g, "&quot;"); }
+
+  window.selectTrack = function(track, artist) {
+    document.getElementById("songInput").value = `${track} — ${artist}`;
+    document.getElementById("searchDropdown").style.display = "none";
+  };
+
+  // ---- Отправка заявки ----
+  window.submitOrder = async function() {
+    const tableNo = document.getElementById("tableNum").value.trim();
+    const song    = document.getElementById("songInput").value.trim();
+    const name    = document.getElementById("guestName").value.trim();
+
+    if (!tableNo || +tableNo < 1 || +tableNo > 13) {
+      alert("Укажите номер стола (1–13)"); return;
+    }
+    if (!song) { alert("Введите название песни"); return; }
+
+    // ---- АНТИ-СПАМ: не более 2 активных заявок от стола ----
+    const queueSnap = await get(ref(db, "queue"));
+    const queue = queueSnap.val() || {};
+    const activeFromTable = Object.values(queue).filter(
+      v => String(v.table) === String(tableNo) && v.status !== "done" && v.status !== "rejected"
+    );
+    if (activeFromTable.length >= 2) {
+      document.getElementById("spamWarning").style.display = "block";
+      return;
+    }
+    document.getElementById("spamWarning").style.display = "none";
+
+    const order = {
+      table:  +tableNo,
+      song,
+      name:   name || "Гость",
+      status: "waiting",   // waiting | playing | done | rejected
+      ts:     Date.now()
+    };
+
+    const newRef = await push(ref(db, "queue"), order);
+    // Сохраняем ID заказа в sessionStorage, чтобы отслеживать статус
+    sessionStorage.setItem("myOrderId", newRef.key);
+    sessionStorage.setItem("myOrderTable", tableNo);
+
+    showScreen("screenSuccess");
+    document.getElementById("successSong").textContent  = song;
+    document.getElementById("successTable").textContent = tableNo;
+    document.getElementById("successTime").textContent  = new Date().toLocaleTimeString("ru-RU", {hour:"2-digit",minute:"2-digit"});
+  };
+
+  // ---- Трекинг очереди ----
+  function findMyOrder(entries, table) {
+    const myId = sessionStorage.getItem("myOrderId");
+    return entries.find(([id]) => id === myId) || null;
+  }
+
+  function updateStatusWidget(entries, myEntry) {
+    const widget = document.getElementById("statusWidget");
+    if (!myEntry || document.getElementById("screenSuccess").classList.contains("active") === false) {
+      widget.style.display = "none"; return;
+    }
+    const [, order] = myEntry;
+    const pos = entries.filter(([,v]) => v.status === "waiting").findIndex(([id]) => id === myEntry[0]) + 1;
+
+    widget.style.display = "block";
+    if (order.status === "rejected") {
+      widget.className = "status-widget status-rejected";
+      widget.innerHTML = "😞 Ваша заявка отклонена диджеем";
+    } else if (order.status === "playing") {
+      widget.className = "status-widget status-playing";
+      widget.innerHTML = "🎤 Ваша песня звучит прямо сейчас!";
+    } else if (pos === 1) {
+      widget.className = "status-widget status-next";
+      widget.innerHTML = "⚡ Приготовьтесь — вы следующие!";
+    } else {
+      widget.className = "status-widget status-waiting";
+      widget.innerHTML = `🎶 Ваша песня №${pos} в очереди`;
+    }
+  }
+
+  window.resetForm = function() {
+    sessionStorage.removeItem("myOrderId");
+    document.getElementById("songInput").value = "";
+    document.getElementById("guestName").value = "";
+    document.getElementById("spamWarning").style.display = "none";
+    showScreen("screenOrder");
+  };
+
+  function showScreen(id) {
+    document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+  }
+</script>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;900&family=Nunito:wght@400;600;700&display=swap');
+
+  :root {
+    --bg:      #0b0c14;
+    --surface: #13141f;
+    --card:    #1a1b2e;
+    --accent:  #f5c842;
+    --accent2: #ff6b6b;
+    --text:    #f0edf6;
+    --muted:   #7c7a90;
+    --radius:  18px;
+  }
+
+  .bear-logo { width: 90px; height: 90px; object-fit: contain; filter: drop-shadow(0 0 12px rgba(245,200,66,0.35)); margin-bottom: 6px; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Nunito', sans-serif;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 0 40px;
+  }
+
+  /* ---- HEADER ---- */
+  .header {
+    width: 100%;
+    text-align: center;
+    padding: 32px 20px 20px;
+    background: linear-gradient(180deg, #1a0a3a 0%, transparent 100%);
+  }
+  .header .bear { font-size: 44px; margin-bottom: 6px; }
+  .header h1 {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 1.35rem;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, var(--accent), #ff9f43);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .header .sub { color: var(--muted); font-size: 0.8rem; margin-top: 4px; }
+
+  /* ---- SCREENS ---- */
+  .screen { display: none; width: 100%; max-width: 440px; padding: 0 16px; }
+  .screen.active { display: block; }
+
+  /* ---- CLOSED SCREEN ---- */
+  #screenClosed {
+    text-align: center;
+    padding: 60px 20px;
+  }
+  #screenClosed .emoji { font-size: 64px; margin-bottom: 20px; }
+  #screenClosed h2 {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 1.1rem;
+    margin-bottom: 12px;
+    color: var(--accent);
+  }
+  #screenClosed p { color: var(--muted); font-size: 0.9rem; line-height: 1.6; }
+
+  /* ---- ORDER SCREEN ---- */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 14px;
+    border: 1px solid rgba(245,200,66,0.08);
+  }
+  .card-label {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-label .step-num {
+    width: 22px; height: 22px;
+    background: var(--accent);
+    color: #000;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    flex-shrink: 0;
+  }
+
+  /* table selector */
+  .table-row { display: flex; align-items: center; gap: 10px; }
+  .table-badge {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 2.2rem;
+    font-weight: 900;
+    color: var(--accent);
+    min-width: 52px;
+    text-align: center;
+  }
+  select, input[type="text"], input[type="number"] {
+    width: 100%;
+    background: var(--surface);
+    border: 1.5px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    color: var(--text);
+    font-family: 'Nunito', sans-serif;
+    font-size: 1rem;
+    padding: 13px 16px;
+    outline: none;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+  }
+  select:focus, input:focus { border-color: var(--accent); }
+  select:disabled, input:disabled {
+    opacity: 0.6; cursor: not-allowed;
+  }
+
+  /* search */
+  .search-wrap { position: relative; }
+  #searchDropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0; right: 0;
+    background: #22233a;
+    border: 1.5px solid rgba(245,200,66,0.2);
+    border-radius: 12px;
+    z-index: 100;
+    max-height: 220px;
+    overflow-y: auto;
+    display: none;
+  }
+  .dd-item {
+    padding: 10px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    transition: background 0.15s;
+  }
+  .dd-item:last-child { border-bottom: none; }
+  .dd-item:hover { background: rgba(245,200,66,0.1); }
+  .dd-track { display: block; font-weight: 700; font-size: 0.95rem; }
+  .dd-artist { display: block; color: var(--muted); font-size: 0.8rem; margin-top: 2px; }
+  .dd-loading, .dd-error { color: var(--muted); font-size: 0.85rem; cursor: default; }
+
+  /* spam warning */
+  #spamWarning {
+    display: none;
+    background: rgba(255,107,107,0.12);
+    border: 1px solid var(--accent2);
+    border-radius: 12px;
+    padding: 12px 16px;
+    font-size: 0.85rem;
+    color: var(--accent2);
+    margin-bottom: 14px;
+    line-height: 1.5;
+  }
+
+  /* submit button */
+  .btn-primary {
+    width: 100%;
+    background: linear-gradient(135deg, var(--accent), #ff9f43);
+    color: #000;
+    border: none;
+    border-radius: 14px;
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    padding: 17px;
+    cursor: pointer;
+    letter-spacing: -0.02em;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 6px 24px rgba(245,200,66,0.25);
+  }
+  .btn-primary:active { transform: scale(0.97); }
+
+  .btn-ghost {
+    width: 100%;
+    background: transparent;
+    color: var(--accent);
+    border: 1.5px solid var(--accent);
+    border-radius: 14px;
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 700;
+    font-size: 0.9rem;
+    padding: 15px;
+    cursor: pointer;
+    margin-top: 12px;
+    transition: background 0.15s;
+  }
+  .btn-ghost:hover { background: rgba(245,200,66,0.08); }
+
+  /* ---- SUCCESS SCREEN ---- */
+  #screenSuccess { text-align: center; padding: 10px 16px 0; }
+  .success-icon { font-size: 72px; margin: 20px 0 16px; animation: pop 0.4s cubic-bezier(.36,1.56,.64,1) both; }
+  @keyframes pop { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .success-title {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 1.3rem;
+    font-weight: 900;
+    background: linear-gradient(135deg, var(--accent), #ff9f43);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    margin-bottom: 8px;
+  }
+  .success-sub { color: var(--muted); font-size: 0.88rem; margin-bottom: 24px; }
+  .success-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    margin-bottom: 20px;
+    text-align: left;
+    border: 1px solid rgba(245,200,66,0.12);
+  }
+  .success-row { display: flex; justify-content: space-between; padding: 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.9rem; }
+  .success-row:last-child { border-bottom: none; }
+  .success-row .key { color: var(--muted); }
+  .success-row .val { font-weight: 700; max-width: 60%; text-align: right; }
+
+  /* status widget */
+  .status-widget {
+    display: none;
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .status-waiting  { background: rgba(245,200,66,0.12); color: var(--accent); border: 1px solid rgba(245,200,66,0.3); }
+  .status-next     { background: rgba(255,159,67,0.15);  color: #ff9f43;      border: 1px solid rgba(255,159,67,0.4); animation: pulse 1.2s infinite; }
+  .status-playing  { background: rgba(46,213,115,0.12);  color: #2ed573;      border: 1px solid rgba(46,213,115,0.3); animation: pulse 0.8s infinite; }
+  .status-rejected { background: rgba(255,107,107,0.12); color: var(--accent2); border: 1px solid rgba(255,107,107,0.3); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img src="bear_logo.png" class="bear-logo" alt="Большая Медведица">
+  <h1>Большая Медведица</h1>
+  <div class="sub">Karaoke Bar · Благовещенск</div>
+</div>
+
+<!-- ЭКРАН: вечер закрыт -->
+<div class="screen active" id="screenClosed">
+  <div class="emoji">🌙</div>
+  <h2>Вечер ещё не начался</h2>
+  <p>Система заказов пока недоступна.<br>Диджей откроет вечер совсем скоро — заходите позже!</p>
+</div>
+
+<!-- ЭКРАН: заказ песни -->
+<div class="screen" id="screenOrder">
+
+  <!-- Шаг 1: Стол -->
+  <div class="card">
+    <div class="card-label"><span class="step-num">1</span> Ваш стол</div>
+    <div class="table-row">
+      <div class="table-badge" id="tableDisplay">—</div>
+      <input type="number" id="tableNum" min="1" max="13" placeholder="Номер стола (1–13)"
+        oninput="document.getElementById('tableDisplay').textContent = this.value || '—'">
+    </div>
+  </div>
+
+  <!-- Шаг 2: Ваше имя -->
+  <div class="card">
+    <div class="card-label"><span class="step-num">2</span> Ваше имя</div>
+    <input type="text" id="guestName" placeholder="Как вас объявить? (необязательно)" maxlength="30">
+  </div>
+
+  <!-- Шаг 3: Песня -->
+  <div class="card">
+    <div class="card-label"><span class="step-num">3</span> Найдите песню</div>
+    <div class="search-wrap">
+      <input type="text" id="songInput" placeholder="Исполнитель или название…"
+        oninput="onSearchInput(this.value)" autocomplete="off">
+      <div id="searchDropdown"></div>
+    </div>
+  </div>
+
+  <!-- Анти-спам -->
+  <div id="spamWarning">
+    ⛔ Ваш стол уже добавил 2 песни в очередь.<br>
+    Дождитесь, пока исполнится хотя бы одна из них.
+  </div>
+
+  <button class="btn-primary" onclick="submitOrder()">🎤 Заказать песню</button>
+</div>
+
+<!-- ЭКРАН: успех -->
+<div class="screen" id="screenSuccess">
+  <div class="status-widget" id="statusWidget"></div>
+  <div class="success-icon">🎉</div>
+  <div class="success-title">Заявка принята!</div>
+  <div class="success-sub">Ваша песня отправлена диджею.<br>Ожидайте своей очереди!</div>
+  <div class="success-card">
+    <div class="success-row"><span class="key">Стол</span><span class="val" id="successTable">—</span></div>
+    <div class="success-row"><span class="key">Песня</span><span class="val" id="successSong">—</span></div>
+    <div class="success-row"><span class="key">Время</span><span class="val" id="successTime">—</span></div>
+  </div>
+  <button class="btn-primary" onclick="resetForm()">🎶 Заказать ещё</button>
+</div>
+
+</body>
+</html>
