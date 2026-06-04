@@ -217,7 +217,7 @@
 
       searchTimeout = setTimeout(async () => {
         try {
-          const url = `https://itunes.apple.com/search?term=${encodeURIComponent(val)}&media=music&limit=8&country=ru`;
+          const url = `https://itunes.apple.com/search?term=${encodeURIComponent(val)}&media=music&limit=8`;
           const r = await fetch(url);
           const data = await r.json();
           renderDropdown(data.results);
