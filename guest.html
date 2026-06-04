@@ -62,14 +62,12 @@
     let globalPlaying  = null; // id текущей играющей
 
     window.addEventListener("DOMContentLoaded", () => {
-      const tableInput   = document.getElementById("tableNum");
-      const tableDisplay = document.getElementById("tableDisplay");
+      const tableInput = document.getElementById("tableNum");
 
       // Установка стола из QR
       if (tableFromURL) {
         tableInput.value    = tableFromURL;
         tableInput.disabled = true;
-        tableDisplay.textContent = tableFromURL;
         tableInput.style.display = "none";
         document.getElementById("tableFixed").style.display    = "block";
         document.getElementById("tableFixedNum").textContent   = tableFromURL;
