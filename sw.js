@@ -1,7 +1,7 @@
 // Service Worker — Большая Медведица Karaoke
 // Кешируем только статику; Firebase работает в онлайне
 
-const CACHE_NAME = "bigbear-karaoke-v1";
+const CACHE_NAME = "bigbear-karaoke-v2";
 const STATIC_ASSETS = [
   "/guest.html",
   "/manifest.json",
@@ -37,13 +37,14 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  // Firebase, iTunes API — всегда из сети
+  // Firebase, iTunes API, DJ-панель — всегда из сети
   if (
     url.hostname.includes("firebase") ||
     url.hostname.includes("gstatic") ||
     url.hostname.includes("itunes.apple.com") ||
     url.hostname.includes("fonts.googleapis.com") ||
-    url.hostname.includes("fonts.gstatic.com")
+    url.hostname.includes("fonts.gstatic.com") ||
+    url.pathname.includes("dj.html")
   ) {
     event.respondWith(fetch(event.request));
     return;
