@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0A0F">
+<title>DJ-пульт — Большая Медведица</title>
+
+<!-- ============================================================
+  FIREBASE CONFIG — замените на данные вашего проекта Firebase
+  ============================================================ -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, onValue, update, remove, set, get }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDC9AK3HtAGvuAdCbtfnWM20LLu12DxzFs",
+    authDomain: "bigbear-karaoke.firebaseapp.com",
+    databaseURL: "https://bigbear-karaoke-default-rtdb.firebaseio.com",
+    projectId: "bigbear-karaoke",
+    storageBucket: "bigbear-karaoke.firebasestorage.app",
+    messagingSenderId: "882418443323",
+    appId: "1:882418443323:web:0dc2e48fc94a02a925e81e"
+  };
+
+  // ============================================================
+  // MASTER PASSWORD — смените перед деплоем!
+  // Знают только диджей и тех. администратор.
+  // ============================================================
+  const MASTER_PASSWORD = "medved8470";
+
+  // ============================================================
+  // Количество столов в баре
+  // ============================================================
+  const TOTAL_TABLES = 13;
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getDatabase(app);
+
+  // ----------- STATE -----------
+  let queue        = {};   // { id: orderObj }
+  let orderList    = [];   // [id] — порядок в очереди
+  let currentlyPlaying = null; // id текущей играющей (синхронизируется с Firebase)
+  let prevQueueCount = 0;  // для звукового уведомления
+
+  // ----------- AUTH -----------
+  // Сессия сохраняется в sessionStorage — при закрытии вкладки нужна повторная авторизация
+  function isAuthorized() {
+    return sessionStorage.getItem("djAuth") === "ok";
+  }
+
+  window.tryLogin = function() {
+    const pwd = document.getElementById("pwdInput").value;
+    if (pwd === MASTER_PASSWORD) {
+      sessionStorage.setItem("djAuth", "ok");
+      document.getElementById("pwdError").style.display = "none";
+      showDJPanel();
+    } else {
+      document.getElementById("pwdError").style.display = "block";
+      document.getElementById("pwdInput").value = "";
+    }
+  };
+
+  // ----------- INIT -----------
+  window.addEventListener("DOMContentLoaded", () => {
+    // Звук уведомления (Web Audio API — не требует файлов)
+    window.notifSound = buildNotifSound();
+
+    if (!isAuthorized()) {
+      showScreen("screenLogin");
+      return;
+    }
+    showDJPanel();
+  });
+
+  function showDJPanel() {
+    // Проверяем, открыт ли вечер
+    onValue(ref(db, "session/isOpen"), (snap) => {
+      const isOpen = snap.val();
+      if (!isOpen) {
+        showScreen("screenSessionClosed");
+      } else {
+        showScreen("screenDJ");
+      }
+    });
+
+    // Восстанавливаем currentlyPlaying из Firebase после перезагрузки
+    onValue(ref(db, "session/currentlyPlaying"), (snap) => {
+      currentlyPlaying = snap.val() || null;
+      renderPlaying();
+    });
+
+    // Слушаем очередь + звуковое уведомление при новом заказе
+    onValue(ref(db, "queue"), (snap) => {
+      queue = snap.val() || {};
+      orderList = Object.keys(queue).sort((a, b) => (queue[a].ts || 0) - (queue[b].ts || 0));
+
+      // Звук при новом заказе (только если уже были заказы — не при первой загрузке)
+      const newCount = Object.keys(queue).length;
+      if (prevQueueCount > 0 && newCount > prevQueueCount) {
+        try { window.notifSound && window.notifSound(); } catch(e) {}
+      }
+      prevQueueCount = newCount;
+
+      renderAll();
+      updateStats();
+    });
+  }
+
+  // ----------- ОТКРЫТЬ ВЕЧЕР -----------
+  window.openSession = async function() {
+    const pwd = document.getElementById("openPwdInput").value;
+    if (pwd !== MASTER_PASSWORD) {
+      document.getElementById("openPwdError").style.display = "block";
+      return;
+    }
+    await set(ref(db, "session"), { isOpen: true, openedAt: Date.now() });
+    document.getElementById("openPwdError").style.display = "none";
+    showScreen("screenDJ");
+  };
+
+  // ----------- ЗАКРЫТЬ ВЕЧЕР -----------
+  window.closeSession = function() {
+    document.getElementById("closeModal").style.display = "flex";
+  };
+
+  window.confirmClose = async function() {
+    const pwd = document.getElementById("closePwdInput").value;
+    if (pwd !== MASTER_PASSWORD) {
+      document.getElementById("closePwdError").style.display = "block";
+      return;
+    }
+    // Сохраняем историю вечера, затем очищаем очередь
+    const histSnap = await get(ref(db, "history"));
+    const hist = histSnap.val() || {};
+    Object.entries(queue).forEach(([id, v]) => { if (v.status === "done") hist[id] = v; });
+    await set(ref(db, "history"), hist);
+    await remove(ref(db, "queue"));
+    await set(ref(db, "session"), { isOpen: false });
+    sessionStorage.removeItem("djAuth");
+    cancelClose();
+    showScreen("screenLogin");
+  };
+
+  window.cancelClose = function() {
+    document.getElementById("closeModal").style.display = "none";
+    document.getElementById("closePwdInput").value = "";
+    document.getElementById("closePwdError").style.display = "none";
+  };
+
+  // ----------- RENDER -----------
+  function renderAll() {
+    renderQueue();
+    renderTables();
+    renderPlaying();
+  }
+
+  function renderPlaying() {
+    const container = document.getElementById("nowPlaying");
+    if (!currentlyPlaying || !queue[currentlyPlaying]) {
+      container.innerHTML = `<div class="empty-state">🎧 Ничего не играет. Запустите первую песню.</div>`;
+      return;
+    }
+    const o = queue[currentlyPlaying];
+    container.innerHTML = `
+      <div class="now-card">
+        <div class="now-icon">🎤</div>
+        <div class="now-info">
+          <div class="now-song">${o.song}</div>
+          <div class="now-meta">Стол ${o.table}${o.name ? ' · ' + o.name : ''}</div>
+        </div>
+        <button class="btn-done" onclick="markDone('${currentlyPlaying}')">✓ Сыграна</button>
+      </div>`;
+  }
+
+  function renderQueue() {
+    const container = document.getElementById("queueList");
+    const waiting = orderList.filter(id => queue[id]?.status === "waiting");
+
+    document.getElementById("queueCount").textContent = waiting.length;
+
+    if (waiting.length === 0) {
+      container.innerHTML = `<div class="empty-state">🎵 Очередь пуста. Ждём заказов.</div>`;
+      return;
+    }
+
+    container.innerHTML = waiting.map((id, idx) => {
+      const o = queue[id];
+      const waitMin = Math.round((Date.now() - o.ts) / 60000);
+      return `
+      <div class="queue-card" id="card-${id}">
+        <div class="queue-pos">${idx + 1}</div>
+        <div class="queue-info">
+          <div class="queue-song">${o.song}</div>
+          <div class="queue-meta">
+            Стол ${o.table}${o.name ? ' · ' + o.name : ''}
+            <span class="wait-badge">${waitMin} мин</span>
+          </div>
+        </div>
+        <div class="queue-actions">
+          <button class="btn-play"   onclick="playNow('${id}')"  title="Играть сейчас">▶</button>
+          <button class="btn-up"    onclick="moveUp('${id}', ${idx})"   title="Поднять" ${idx===0?"disabled":""}>↑</button>
+          <button class="btn-down"  onclick="moveDown('${id}', ${idx}, ${waiting.length})" title="Опустить" ${idx===waiting.length-1?"disabled":""}>↓</button>
+          <button class="btn-table" onclick="openChangeTable('${id}')" title="Изменить стол">📍</button>
+          <button class="btn-reject" onclick="rejectOrder('${id}')" title="Отклонить">✕</button>
+        </div>
+      </div>`;
+    }).join("");
+  }
+
+  function renderTables() {
+    const container = document.getElementById("tablesList");
+    const byTable = {};
+    orderList.forEach(id => {
+      const o = queue[id];
+      if (!o || o.status === "rejected") return;
+      if (!byTable[o.table]) byTable[o.table] = [];
+      byTable[o.table].push({ id, ...o });
+    });
+
+    if (Object.keys(byTable).length === 0) {
+      container.innerHTML = `<div class="empty-state">Данные появятся после первых заказов.</div>`;
+      return;
+    }
+
+    container.innerHTML = Object.keys(byTable).sort((a,b)=>+a-+b).map(t => `
+      <div class="table-group">
+        <div class="table-header">Стол ${t}</div>
+        ${byTable[t].map(o => `
+          <div class="table-row-item status-${o.status}">
+            <span>${o.song}</span>
+            <span class="status-label">${statusLabel(o.status)}</span>
+          </div>`).join("")}
+      </div>`).join("");
+  }
+
+  function statusLabel(s) {
+    return {waiting:"в очереди", playing:"играет", done:"сыграна", rejected:"отклонена"}[s] || s;
+  }
+
+  function updateStats() {
+    const all = Object.values(queue);
+    document.getElementById("statQueue").textContent   = all.filter(o=>o.status==="waiting").length;
+    document.getElementById("statDone").textContent    = all.filter(o=>o.status==="done").length;
+    const tables = new Set(all.filter(o=>o.status!=="done"&&o.status!=="rejected").map(o=>o.table));
+    document.getElementById("statTables").textContent  = tables.size;
+  }
+
+  // ----------- ACTIONS -----------
+  window.playNow = async function(id) {
+    // Предыдущую играющую — назад в waiting (если не done)
+    if (currentlyPlaying && queue[currentlyPlaying]?.status === "playing") {
+      await update(ref(db, `queue/${currentlyPlaying}`), { status: "waiting" });
+    }
+    currentlyPlaying = id;
+    await update(ref(db, `queue/${id}`), { status: "playing" });
+    // Сохраняем в Firebase — чтобы не потерять после перезагрузки страницы
+    await set(ref(db, "session/currentlyPlaying"), id);
+    renderPlaying();
+  };
+
+  window.markDone = async function(id) {
+    await update(ref(db, `queue/${id}`), { status: "done" });
+    currentlyPlaying = null;
+    await set(ref(db, "session/currentlyPlaying"), null);
+    // Автоматически предлагаем следующую
+    const nextId = orderList.find(oid => queue[oid]?.status === "waiting");
+    if (nextId) playNow(nextId);
+    else renderPlaying();
+  };
+
+  window.rejectOrder = async function(id) {
+    await update(ref(db, `queue/${id}`), { status: "rejected" });
+  };
+
+  // Перемещение: меняем местами ts двух соседних элементов
+  window.moveUp = async function(id, idx) {
+    const waiting = orderList.filter(i => queue[i]?.status === "waiting");
+    if (idx === 0) return;
+    const prevId = waiting[idx - 1];
+    const tsA = queue[id].ts;
+    const tsB = queue[prevId].ts;
+    await update(ref(db, `queue/${id}`),     { ts: tsB - 1 });
+    await update(ref(db, `queue/${prevId}`), { ts: tsA });
+  };
+
+  window.moveDown = async function(id, idx, len) {
+    const waiting = orderList.filter(i => queue[i]?.status === "waiting");
+    if (idx >= len - 1) return;
+    const nextId = waiting[idx + 1];
+    const tsA = queue[id].ts;
+    const tsB = queue[nextId].ts;
+    await update(ref(db, `queue/${id}`),     { ts: tsB + 1 });
+    await update(ref(db, `queue/${nextId}`), { ts: tsA });
+  };
+
+  // Изменить стол
+  window.openChangeTable = function(id) {
+    document.getElementById("changeTableModal").style.display = "flex";
+    document.getElementById("changeTableId").value = id;
+    // Заполняем select столами
+    const sel = document.getElementById("changeTableSelect");
+    sel.innerHTML = "";
+    for (let i = 1; i <= TOTAL_TABLES; i++) {
+      const opt = document.createElement("option");
+      opt.value = i;
+      opt.textContent = `Стол ${i}`;
+      if (queue[id]?.table === i) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  };
+
+  window.confirmChangeTable = async function() {
+    const id    = document.getElementById("changeTableId").value;
+    const table = +document.getElementById("changeTableSelect").value;
+    await update(ref(db, `queue/${id}`), { table });
+    closeChangeTable();
+  };
+
+  window.closeChangeTable = function() {
+    document.getElementById("changeTableModal").style.display = "none";
+  };
+
+  // ----------- TABS -----------
+  window.showTab = function(tab) {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
+    document.getElementById("tab-" + tab).classList.add("active");
+    document.querySelector(`.tab-btn[data-tab="${tab}"]`).classList.add("active");
+  };
+
+  // ----------- SCREEN SWITCH -----------
+  function showScreen(id) {
+    document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+  }
+
+  // ----------- NOTIFICATION SOUND -----------
+  function buildNotifSound() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    return function() {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = "sine";
+      o.frequency.setValueAtTime(880, ctx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.3);
+      g.gain.setValueAtTime(0.4, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      o.start(ctx.currentTime);
+      o.stop(ctx.currentTime + 0.4);
+    };
+  }
+
+  // Звук обрабатывается внутри showDJPanel → onValue("queue")
+
+</script>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;900&family=Nunito:wght@400;600;700&display=swap');
+
+  :root {
+    --bg:      #0b0c14;
+    --surface: #13141f;
+    --card:    #1a1b2e;
+    --card2:   #1e1f35;
+    --accent:  #f5c842;
+    --accent2: #ff6b6b;
+    --green:   #2ed573;
+    --text:    #f0edf6;
+    --muted:   #7c7a90;
+    --radius:  16px;
+  }
+
+  .bear-logo-lg { width: 90px; height: 90px; object-fit: contain; filter: drop-shadow(0 0 14px rgba(245,200,66,0.4)); margin-bottom: 12px; }
+  .bear-logo-sm { width: 38px; height: 38px; object-fit: contain; filter: drop-shadow(0 0 6px rgba(245,200,66,0.3)); }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Nunito', sans-serif;
+    min-height: 100dvh;
+  }
+
+  /* ---- LOGIN / SESSION CLOSED ---- */
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  #screenLogin, #screenSessionClosed {
+    min-height: 100dvh;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    text-align: center;
+  }
+  #screenLogin.active, #screenSessionClosed.active { display: flex; }
+
+  .login-bear { font-size: 56px; margin-bottom: 12px; }
+  .login-title {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 900;
+    background: linear-gradient(135deg, var(--accent), #ff9f43);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    margin-bottom: 6px;
+  }
+  .login-sub { color: var(--muted); font-size: 0.85rem; margin-bottom: 28px; }
+  .login-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 28px 24px;
+    width: 100%; max-width: 360px;
+    border: 1px solid rgba(245,200,66,0.1);
+  }
+  .login-card h3 {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+  }
+
+  input[type="password"], input[type="text"], select {
+    width: 100%;
+    background: var(--surface);
+    border: 1.5px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    color: var(--text);
+    font-family: 'Nunito', sans-serif;
+    font-size: 1rem;
+    padding: 13px 16px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  .error-msg {
+    display: none;
+    color: var(--accent2);
+    font-size: 0.82rem;
+    margin-top: 8px;
+  }
+
+  .btn-primary {
+    width: 100%;
+    background: linear-gradient(135deg, var(--accent), #ff9f43);
+    color: #000;
+    border: none;
+    border-radius: 12px;
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 700;
+    font-size: 0.95rem;
+    padding: 15px;
+    cursor: pointer;
+    margin-top: 14px;
+    box-shadow: 0 4px 20px rgba(245,200,66,0.2);
+    transition: transform 0.15s;
+  }
+  .btn-primary:active { transform: scale(0.97); }
+
+  .btn-danger {
+    background: rgba(255,107,107,0.12);
+    color: var(--accent2);
+    border: 1.5px solid var(--accent2);
+    border-radius: 12px;
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 700;
+    font-size: 0.82rem;
+    padding: 10px 18px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-danger:hover { background: rgba(255,107,107,0.22); }
+
+  /* ---- DJ PANEL ---- */
+  #screenDJ { display: none; flex-direction: column; min-height: 100dvh; }
+  #screenDJ.active { display: flex; }
+
+  /* header */
+  .dj-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    position: sticky; top: 0; z-index: 50;
+  }
+  .dj-header-left { display: flex; align-items: center; gap: 10px; }
+  .dj-logo { font-size: 24px; }
+  .dj-brand {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), #ff9f43);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .dj-brand-sub { font-size: 0.65rem; color: var(--muted); margin-top: 1px; }
+
+  /* stats bar */
+  .stats-bar {
+    display: flex;
+    gap: 10px;
+    padding: 12px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .stat-chip {
+    flex: 1;
+    background: var(--card);
+    border-radius: 12px;
+    padding: 10px 8px;
+    text-align: center;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  .stat-num {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 900;
+    color: var(--accent);
+  }
+  .stat-label { font-size: 0.65rem; color: var(--muted); margin-top: 2px; }
+
+  /* now playing */
+  .now-section { padding: 14px 16px 0; }
+  .section-title {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  .now-card {
+    background: linear-gradient(135deg, #1a2a1a, #1e2e1e);
+    border: 1.5px solid rgba(46,213,115,0.3);
+    border-radius: var(--radius);
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    animation: glow 2s ease-in-out infinite;
+  }
+  @keyframes glow {
+    0%,100% { box-shadow: 0 0 16px rgba(46,213,115,0.15); }
+    50%      { box-shadow: 0 0 30px rgba(46,213,115,0.3);  }
+  }
+  .now-icon { font-size: 32px; flex-shrink: 0; }
+  .now-info { flex: 1; min-width: 0; }
+  .now-song { font-weight: 700; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .now-meta { color: var(--muted); font-size: 0.82rem; margin-top: 3px; }
+  .btn-done {
+    background: var(--green);
+    color: #000;
+    border: none;
+    border-radius: 10px;
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 700;
+    font-size: 0.75rem;
+    padding: 10px 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: transform 0.15s;
+  }
+  .btn-done:active { transform: scale(0.95); }
+
+  /* tabs */
+  .tabs-bar {
+    display: flex;
+    gap: 8px;
+    padding: 14px 16px 0;
+  }
+  .tab-btn {
+    flex: 1;
+    background: var(--card);
+    color: var(--muted);
+    border: 1.5px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    font-family: 'Unbounded', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 10px 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .tab-btn.active {
+    background: rgba(245,200,66,0.12);
+    color: var(--accent);
+    border-color: rgba(245,200,66,0.3);
+  }
+
+  /* tab panes */
+  .tab-pane { display: none; padding: 14px 16px; }
+  .tab-pane.active { display: block; }
+
+  /* queue cards */
+  .queue-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid rgba(255,255,255,0.05);
+    transition: transform 0.15s;
+  }
+  .queue-card:active { transform: scale(0.99); }
+  .queue-pos {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 900;
+    color: rgba(245,200,66,0.3);
+    min-width: 28px;
+    text-align: center;
+  }
+  .queue-info { flex: 1; min-width: 0; }
+  .queue-song { font-weight: 700; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .queue-meta { color: var(--muted); font-size: 0.78rem; margin-top: 3px; display: flex; align-items: center; gap: 8px; }
+  .wait-badge {
+    background: rgba(255,255,255,0.06);
+    border-radius: 6px;
+    padding: 2px 7px;
+    font-size: 0.72rem;
+  }
+  .queue-actions {
+    display: flex;
+    gap: 5px;
+    flex-shrink: 0;
+  }
+  .queue-actions button {
+    width: 34px; height: 34px;
+    border-radius: 9px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 700;
+    transition: transform 0.12s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .queue-actions button:active { transform: scale(0.9); }
+  .queue-actions button:disabled { opacity: 0.3; cursor: not-allowed; }
+  .btn-play   { background: rgba(46,213,115,0.15);  color: var(--green);   }
+  .btn-up     { background: rgba(245,200,66,0.1);   color: var(--accent);  }
+  .btn-down   { background: rgba(245,200,66,0.1);   color: var(--accent);  }
+  .btn-table  { background: rgba(120,120,255,0.12); color: #9b9bff;        }
+  .btn-reject { background: rgba(255,107,107,0.12); color: var(--accent2); }
+
+  /* tables */
+  .table-group { margin-bottom: 14px; }
+  .table-header {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    padding-left: 4px;
+  }
+  .table-row-item {
+    background: var(--card);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.88rem;
+    border-left: 3px solid transparent;
+  }
+  .table-row-item.status-waiting  { border-left-color: var(--accent); }
+  .table-row-item.status-playing  { border-left-color: var(--green);  }
+  .table-row-item.status-done     { border-left-color: var(--muted); opacity: 0.6; }
+  .table-row-item.status-rejected { border-left-color: var(--accent2); opacity: 0.5; }
+  .status-label { font-size: 0.72rem; color: var(--muted); flex-shrink: 0; margin-left: 10px; }
+
+  /* empty */
+  .empty-state {
+    color: var(--muted);
+    font-size: 0.9rem;
+    text-align: center;
+    padding: 30px 20px;
+    background: var(--card);
+    border-radius: var(--radius);
+    line-height: 1.6;
+  }
+
+  /* count badge */
+  .count-badge {
+    display: inline-block;
+    background: var(--accent);
+    color: #000;
+    border-radius: 20px;
+    font-family: 'Unbounded', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 900;
+    padding: 2px 8px;
+    margin-left: 4px;
+  }
+
+  /* ---- MODALS ---- */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal {
+    background: var(--card2);
+    border-radius: 20px;
+    padding: 28px 24px;
+    width: 100%; max-width: 360px;
+    border: 1px solid rgba(245,200,66,0.12);
+  }
+  .modal h3 {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 1rem;
+    margin-bottom: 8px;
+    color: var(--accent);
+  }
+  .modal p { color: var(--muted); font-size: 0.85rem; margin-bottom: 18px; line-height: 1.5; }
+  .modal-row { display: flex; gap: 10px; margin-top: 14px; }
+  .btn-ghost {
+    flex: 1;
+    background: transparent;
+    color: var(--muted);
+    border: 1.5px solid rgba(255,255,255,0.12);
+    border-radius: 12px;
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 700;
+    font-size: 0.82rem;
+    padding: 12px;
+    cursor: pointer;
+  }
+
+  .queue-count-label { font-size: 0.75rem; color: var(--muted); margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<!-- ========== ЭКРАН: АВТОРИЗАЦИЯ ========== -->
+<div class="screen active" id="screenLogin">
+  <img src="bear_logo.png" class="bear-logo-lg" alt="Большая Медведица">
+  <div class="login-title">DJ-пульт</div>
+  <div class="login-sub">Большая Медведица · Karaoke Bar</div>
+  <div class="login-card">
+    <h3>🔐 Вход</h3>
+    <input type="password" id="pwdInput" placeholder="Пароль диджея"
+      onkeydown="if(event.key==='Enter') tryLogin()">
+    <div class="error-msg" id="pwdError">Неверный пароль</div>
+    <button class="btn-primary" onclick="tryLogin()">Войти</button>
+  </div>
+</div>
+
+<!-- ========== ЭКРАН: ВЕЧЕР ЗАКРЫТ ========== -->
+<div class="screen" id="screenSessionClosed">
+  <div class="login-bear">🌙</div>
+  <div class="login-title">Вечер закрыт</div>
+  <div class="login-sub">Введите пароль, чтобы открыть новый вечер</div>
+  <div class="login-card">
+    <h3>🎉 Открыть вечер</h3>
+    <input type="password" id="openPwdInput" placeholder="Пароль"
+      onkeydown="if(event.key==='Enter') openSession()">
+    <div class="error-msg" id="openPwdError">Неверный пароль</div>
+    <button class="btn-primary" onclick="openSession()">Открыть вечер</button>
+  </div>
+</div>
+
+<!-- ========== DJ ПАНЕЛЬ ========== -->
+<div class="screen" id="screenDJ">
+
+  <!-- Header -->
+  <div class="dj-header">
+    <div class="dj-header-left">
+      <img src="bear_logo.png" class="bear-logo-sm" alt="">
+      <div>
+        <div class="dj-brand">Большая Медведица</div>
+        <div class="dj-brand-sub">DJ-пульт · вечер открыт</div>
+      </div>
+    </div>
+    <button class="btn-danger" onclick="closeSession()">Закрыть вечер</button>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-bar">
+    <div class="stat-chip">
+      <div class="stat-num" id="statQueue">0</div>
+      <div class="stat-label">В очереди</div>
+    </div>
+    <div class="stat-chip">
+      <div class="stat-num" id="statDone">0</div>
+      <div class="stat-label">Сыграно</div>
+    </div>
+    <div class="stat-chip">
+      <div class="stat-num" id="statTables">0</div>
+      <div class="stat-label">Столов</div>
+    </div>
+  </div>
+
+  <!-- Now playing -->
+  <div class="now-section">
+    <div class="section-title">▶ Сейчас играет</div>
+    <div id="nowPlaying">
+      <div class="empty-state">🎧 Ничего не играет. Запустите первую песню.</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs-bar">
+    <button class="tab-btn active" data-tab="queue" onclick="showTab('queue')">
+      ▶ Очередь<span class="count-badge" id="queueCount">0</span>
+    </button>
+    <button class="tab-btn" data-tab="tables" onclick="showTab('tables')">
+      📊 По столикам
+    </button>
+  </div>
+
+  <!-- Queue tab -->
+  <div class="tab-pane active" id="tab-queue">
+    <div id="queueList">
+      <div class="empty-state">🎵 Заявок пока нет. Гости заказывают через QR-код.</div>
+    </div>
+  </div>
+
+  <!-- Tables tab -->
+  <div class="tab-pane" id="tab-tables">
+    <div id="tablesList">
+      <div class="empty-state">Данные появятся после первых заказов.</div>
+    </div>
+  </div>
+
+</div><!-- /screenDJ -->
+
+<!-- ========== МОДАЛ: ЗАКРЫТЬ ВЕЧЕР ========== -->
+<div class="modal-overlay" id="closeModal">
+  <div class="modal">
+    <h3>⚠️ Закрыть вечер?</h3>
+    <p>Очередь будет очищена, все заказы — завершены. Это действие нельзя отменить.<br><br>Введите пароль для подтверждения.</p>
+    <input type="password" id="closePwdInput" placeholder="Пароль диджея"
+      onkeydown="if(event.key==='Enter') confirmClose()">
+    <div class="error-msg" id="closePwdError">Неверный пароль</div>
+    <div class="modal-row">
+      <button class="btn-ghost" onclick="cancelClose()">Отмена</button>
+      <button class="btn-danger" onclick="confirmClose()">Закрыть вечер</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== МОДАЛ: ИЗМЕНИТЬ СТОЛ ========== -->
+<div class="modal-overlay" id="changeTableModal">
+  <div class="modal">
+    <h3>📍 Изменить стол</h3>
+    <p>Выберите новый номер стола для этой заявки.</p>
+    <input type="hidden" id="changeTableId">
+    <select id="changeTableSelect"></select>
+    <div class="modal-row">
+      <button class="btn-ghost" onclick="closeChangeTable()">Отмена</button>
+      <button class="btn-primary" onclick="confirmChangeTable()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
