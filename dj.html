@@ -50,7 +50,14 @@
   // ----------- INIT -----------
   window.addEventListener("DOMContentLoaded", () => {
     window.notifSound = buildNotifSound();
-    if (!isAuthorized()) { showScreen("screenLogin"); return; }
+    if (!isAuthorized()) {
+      showScreen("screenLogin");
+      setTimeout(() => {
+        const inp = document.getElementById("pwdInput");
+        if (inp) inp.value = "";
+      }, 50);
+      return;
+    }
     showDJPanel();
   });
 
@@ -696,6 +703,7 @@
   <div class="login-card">
     <h3>🔐 Вход</h3>
     <input type="password" id="pwdInput" placeholder="Пароль диджея"
+      autocomplete="new-password" spellcheck="false"
       onkeydown="if(event.key==='Enter') tryLogin()">
     <div class="error-msg" id="pwdError">Неверный пароль</div>
     <button class="btn-primary" onclick="tryLogin()">Войти</button>
@@ -710,6 +718,7 @@
   <div class="login-card">
     <h3>🎉 Открыть вечер</h3>
     <input type="password" id="openPwdInput" placeholder="Пароль"
+      autocomplete="new-password" spellcheck="false"
       onkeydown="if(event.key==='Enter') openSession()">
     <div class="error-msg" id="openPwdError">Неверный пароль</div>
     <button class="btn-primary" onclick="openSession()">Открыть вечер</button>
@@ -782,6 +791,7 @@
     </div>
     <p>Очередь будет очищена, все заказы завершены. Это действие нельзя отменить.<br><br>Введите пароль для подтверждения.</p>
     <input type="password" id="closePwdInput" placeholder="Пароль диджея"
+      autocomplete="new-password" spellcheck="false"
       onkeydown="if(event.key==='Enter') confirmClose()">
     <div class="error-msg" id="closePwdError">Неверный пароль</div>
     <div class="modal-row">
